@@ -1,0 +1,9 @@
+@Integration_System_HostAddress = http://localhost:5006
+
+GET {{Integration_System_HostAddress}}/weatherforecast
+
+
+Accept: application/json
+
+###
+GET {{Integration_System_HostAddress}}/hello/
