@@ -1,16 +1,22 @@
-﻿namespace Integration_System.Model
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Integration_System.Model
 {
     public class PayrollModel
     {
+        [Required]
         private int payrollId;
         public int PayrollId { get { return payrollId; } set { payrollId = value; } }
         ///////////////////////////
+        [Required]
         private int employeeId;
         public int EmployeeId { get { return employeeId; } set { employeeId = value; } }
         ///////////////////////////
-        private DateOnly payrollDate;
-        public DateOnly PayrollDate { get { return payrollDate; } set { payrollDate = value; } }
+        [Required]
+        private DateTime payrollDate;
+        public DateTime PayrollDate { get { return payrollDate; } set { payrollDate = value; } }
         ///////////////////////////
+        [Required]
         private decimal baseSalary;
         public decimal BaseSalary { get { return baseSalary; } set { baseSalary = value; } }
         ///////////////////////////
