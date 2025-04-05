@@ -8,17 +8,19 @@ namespace Integration_System.Model
         private int dividendId;
         public int DividendId { get { return dividendId; } set { dividendId = value; } }
         ///////////////////////////
-        [Required]
-        private int shareholderId;
-        public int ShareholderId { get { return shareholderId; } set { shareholderId = value; } }
+        private int employeeId;
+        public int EmployeeId { get { return employeeId; } set { employeeId = value; } }
         ///////////////////////////
         [Required]
         private decimal dividendAmount;
         public decimal DividendAmount { get { return dividendAmount; } set { dividendAmount = value; } }
         ///////////////////////////
         [Required]
-        private DateTime paymentDate;
-        public DateTime PaymentDate { get { return paymentDate; } set { paymentDate = value; } }
+        private DateTime dividendDate;
+        public DateTime DividendDate { get { return dividendDate; } set { dividendDate = value; } }
+        ///////////////////////////
+        private DateTime createdAt;
+        public DateTime CreatedAt { get { return createdAt; } set { createdAt = value; } }
 
     }
 }

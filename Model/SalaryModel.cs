@@ -12,8 +12,8 @@ namespace Integration_System.Model
         public int EmployeeId { get { return employeeId; } set { employeeId = value; } }
         ///////////////////////////
         [Required]
-        private DateTime salaryDate;
-        public DateTime SalaryDate { get { return salaryDate; } set { salaryDate = value; } }
+        private DateTime salaryMonth;
+        public DateTime SalaryMonth { get { return salaryMonth; } set { salaryMonth = value; } }
         ///////////////////////////
         [Required]
         private decimal baseSalary;

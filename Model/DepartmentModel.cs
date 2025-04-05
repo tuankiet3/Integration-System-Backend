@@ -12,7 +12,10 @@ namespace Integration_System.Model
         private string departmentName;
         public string DepartmentName { get { return departmentName; } set { departmentName = value; } }
         ///////////////////////////
-        private int managerId;
-        public int ManagerId { get { return managerId; } set { managerId = value; } }
+        private DateTime createdAt;
+        public DateTime CreatedAt { get { return createdAt; } set { createdAt = value; } }
+        ///////////////////////////
+        private DateTime updatedAt;
+        public DateTime UpdatedAt { get { return updatedAt; } set { updatedAt = value; } }
     }
 }

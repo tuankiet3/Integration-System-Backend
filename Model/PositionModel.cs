@@ -11,5 +11,11 @@ namespace Integration_System.Model
         [Required]
         private string positionName;
         public string PositionName { get { return positionName; } set { positionName = value; } }
+        ///////////////////////////
+        private DateTime createdAt;
+        public DateTime CreatedAt { get { return createdAt; } set { createdAt = value; } }
+        ///////////////////////////
+        private DateTime updatedAt;
+        public DateTime UpdatedAt { get { return updatedAt; } set { updatedAt = value; } }
     }
 }
