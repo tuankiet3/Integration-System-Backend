@@ -7,6 +7,10 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// add dal
+builder.Services.AddScoped<Integration_System.DAL.AttendanceDAL>();
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

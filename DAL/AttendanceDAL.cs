@@ -1,0 +1,166 @@
+﻿using Integration_System.Model;
+using MySql.Data.MySqlClient; // Import thư viện MySQL
+// Bỏ using System.Data.Common; nếu không dùng đến DbDataReader nữa
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Threading.Tasks;
+using Integration_System.Dtos.AttendanceDto;
+
+
+namespace Integration_System.DAL
+{
+    public class AttendanceDAL
+    {
+        private readonly string _mysqlConnectionString;
+        private readonly ILogger<AttendanceDAL> _logger;
+
+        public AttendanceDAL(IConfiguration configuration, ILogger<AttendanceDAL> logger)
+        {
+            _mysqlConnectionString = configuration.GetConnectionString("MySqlConnection") ?? throw new InvalidOperationException("Connection string 'MySqlConnection' not found");
+            _logger = logger;
+        }
+
+        public async Task<IEnumerable<AttendanceModel>> GetAttendancesAsync()
+        {
+            var attendanceList = new List<AttendanceModel>();
+            // use using statement to ensure connection is closed
+            using var connection = new MySqlConnection(_mysqlConnectionString);
+            MySqlDataReader? reader = null;
+            try
+            {
+                // open connection
+                await connection.OpenAsync();
+                string query = "SELECT AttendanceID, EmployeeID, WorkDays, AbsentDays, LeaveDays, AttendanceMonth, CreatedAt FROM attendance ORDER BY AttendanceMonth DESC, EmployeeID ASC";
+                
+                using var command = new MySqlCommand(query, connection);
+                // ExecuteReaderAsync is used to execute the command and return a MySqlDataReader
+                reader = (MySqlDataReader)await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    // use MapReaderToAttendanceModel to map the data from the reader to the AttendanceModel
+                    attendanceList.Add(MapReaderToAttendanceModel(reader));
+                }
+                _logger.LogInformation("Success {Count} attendance records.", attendanceList.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error when taking the timekeeping list.");
+                throw;
+            }
+            finally
+            {
+                if (reader != null && !reader.IsClosed)
+                {
+                    await reader.DisposeAsync();
+                }
+            }
+            return attendanceList;
+        }
+
+        public async Task<AttendanceModel?> GetAttendanceByAttendanceIdAsync(int attendanceId)
+        {
+            AttendanceModel? attendance = null;
+            using var connection = new MySqlConnection(_mysqlConnectionString);
+            MySqlDataReader? reader = null;
+            try
+            {
+                await connection.OpenAsync();
+                string query = "SELECT AttendanceID, EmployeeID, WorkDays, AbsentDays, LeaveDays, AttendanceMonth, CreatedAt FROM attendance WHERE AttendanceID = @AttendanceID";
+                using var command = new MySqlCommand(query, connection);
+                // add parameter to prevent SQL injection
+                command.Parameters.AddWithValue("@AttendanceID", attendanceId);
+                reader = (MySqlDataReader)await command.ExecuteReaderAsync();
+
+                if (await reader.ReadAsync())
+                {
+                    attendance = MapReaderToAttendanceModel(reader);
+                }
+                if (attendance != null)
+                {
+                    _logger.LogInformation("Take information ID: {AttendanceID} Success.", attendanceId);
+                }
+                else
+                {
+                    _logger.LogWarning("The record not found with ID: {AttendanceID}", attendanceId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error when taking information timekeeping ID: {AttendanceID}.", attendanceId);
+                throw;
+            }
+            finally
+            {
+                if (reader != null && !reader.IsClosed)
+                {
+                    await reader.DisposeAsync();
+                }
+            }
+            return attendance;
+        }   
+
+        public async Task<bool> UpdateAttendanceAsync(int attendanceId, UpdateAttendanceDto attendanceDto)
+        {
+            using var connection = new MySqlConnection(_mysqlConnectionString);
+            try
+            {
+                await connection.OpenAsync();
+                string query = @"UPDATE attendance
+                                     SET WorkDays = @WorkDays,
+                                         AbsentDays = @AbsentDays,
+                                         LeaveDays = @LeaveDays
+                                     WHERE AttendanceID = @AttendanceID";
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@WorkDays", attendanceDto.NumberOfWorkingDays);
+                command.Parameters.AddWithValue("@AbsentDays", attendanceDto.NumberOfAbsentDays);
+                command.Parameters.AddWithValue("@LeaveDays", attendanceDto.NumberOfLeaveDays);
+                command.Parameters.AddWithValue("@AttendanceID", attendanceId);
+
+                int rowsAffected = await command.ExecuteNonQueryAsync();
+                if (rowsAffected > 0)
+                {
+                    _logger.LogInformation("Success update the ID Timekeeping: {AttendanceID}.", attendanceId);
+                    return true;
+                }
+                else
+                {
+                    _logger.LogWarning("The ID Time Timekeeper is not found: {AttendanceID} to update.", attendanceId);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error when updating the ID Timekeeping: {AttendanceID}.", attendanceId);
+                return false;
+            }
+        }
+        private AttendanceModel MapReaderToAttendanceModel(MySqlDataReader reader)
+        {
+            int attendanceMonthValue = 0;
+            try
+            {
+                // getOrdinal is used to get the index of the column
+                DateTime attendanceMonthDate = reader.GetDateTime(reader.GetOrdinal("AttendanceMonth"));
+                attendanceMonthValue = attendanceMonthDate.Month;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error when reading or converting Attendancemonth.");
+            }
+
+            return new AttendanceModel
+            {
+                AttendanceId = reader.GetInt32(reader.GetOrdinal("AttendanceID")),
+                EmployeeId = reader.IsDBNull(reader.GetOrdinal("EmployeeID")) ? 0 : reader.GetInt32(reader.GetOrdinal("EmployeeID")),
+                WorkDays = reader.GetInt32(reader.GetOrdinal("WorkDays")),
+                AbsentDays = reader.IsDBNull(reader.GetOrdinal("AbsentDays")) ? 0 : reader.GetInt32(reader.GetOrdinal("AbsentDays")),
+                LeaveDays = reader.IsDBNull(reader.GetOrdinal("LeaveDays")) ? 0 : reader.GetInt32(reader.GetOrdinal("LeaveDays")),
+                AttendanceMonth = attendanceMonthValue
+            };
+        }
+    }
+}
