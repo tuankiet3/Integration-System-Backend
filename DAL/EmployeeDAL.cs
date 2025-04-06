@@ -1,8 +1,10 @@
 ﻿using Integration_System.Model;
 using MySql.Data.MySqlClient;
 using Microsoft.Data.SqlClient;
+using Integration_System.Dtos;
 using Microsoft.Data.SqlClient.DataClassification;
 using System.Data;
+using Integration_System.Dtos.EmployeeDTO;
 namespace Integration_System.DAL
 {
     public class EmployeeDAL
@@ -94,7 +96,7 @@ namespace Integration_System.DAL
             return employees;
         }
 
-        public async Task<bool> InsertEmployeeAsync(EmployeeModel employee)
+        public async Task<bool> InsertEmployeeAsync(EmployeeUpdateDTO employeeDTO)
         {
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
             using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
@@ -104,31 +106,29 @@ namespace Integration_System.DAL
                 // Insert into SQL Server
                 await connectionSQLServer.OpenAsync();
                 Console.WriteLine("✅ Kết nối SQl Server thành công!");
-                string querySQLServer = @"INSERT INTO Employees (EmployeeId, FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentId, PositionId, Status, CreatedAt, UpdatedAt) VALUES (@EmployeeId, @FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt)";
+                string querySQLServer = @"INSERT INTO Employees (FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentId, PositionId, Status, CreatedAt, UpdatedAt) VALUES (@FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt)";
                 SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
-                commandSQLServer.Parameters.AddWithValue("@EmployeeId", employee.EmployeeId);
-                commandSQLServer.Parameters.AddWithValue("@FullName", employee.FullName);
-                commandSQLServer.Parameters.AddWithValue("@DateofBirth", employee.DateofBirth);
-                commandSQLServer.Parameters.AddWithValue("@Gender", employee.Gender);
-                commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employee.PhoneNumber);
-                commandSQLServer.Parameters.AddWithValue("@Email", employee.Email);
-                commandSQLServer.Parameters.AddWithValue("@HireDate", employee.HireDate);
-                commandSQLServer.Parameters.AddWithValue("@DepartmentId", employee.DepartmentId);
-                commandSQLServer.Parameters.AddWithValue("@PositionId", employee.PositionId);
-                commandSQLServer.Parameters.AddWithValue("@Status", employee.Status);
+                commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+                commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
+                commandSQLServer.Parameters.AddWithValue("@Gender", employeeDTO.Gender);
+                commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employeeDTO.PhoneNumber);
+                commandSQLServer.Parameters.AddWithValue("@Email", employeeDTO.Email);
+                commandSQLServer.Parameters.AddWithValue("@HireDate", employeeDTO.HireDate);
+                commandSQLServer.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+                commandSQLServer.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+                commandSQLServer.Parameters.AddWithValue("@Status", employeeDTO.Status);
                 commandSQLServer.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                 commandSQLServer.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
 
                 // Insert into MySQL
                 await connectionMySQL.OpenAsync();
                 Console.WriteLine("✅ Kết nối MySQL thành công!");
-                string queryMySQL = @"INSERT INTO employees (EmployeeId, FullName, DepartmentId, PositionId, Status) VALUES (@EmployeeId, @FullName, @DepartmentId, @PositionId, @Status)";
+                string queryMySQL = @"INSERT INTO employees (FullName, DepartmentId, PositionId, Status) VALUES (@FullName, @DepartmentId, @PositionId, @Status)";
                 MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
-                commandMySQL.Parameters.AddWithValue("@EmployeeId", employee.EmployeeId);
-                commandMySQL.Parameters.AddWithValue("@FullName", employee.FullName);
-                commandMySQL.Parameters.AddWithValue("@DepartmentId", employee.DepartmentId);
-                commandMySQL.Parameters.AddWithValue("@PositionId", employee.PositionId);
-                commandMySQL.Parameters.AddWithValue("@Status", employee.Status);
+                commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+                commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+                commandMySQL.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+                commandMySQL.Parameters.AddWithValue("@Status", employeeDTO.Status);
 
                 int rowsAffectedSQLServer = await commandSQLServer.ExecuteNonQueryAsync();
                 int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
@@ -199,7 +199,7 @@ namespace Integration_System.DAL
             }
         }
 
-        public async Task<bool> UpdateEmployee(int EmployeeId, EmployeeModel employee)
+        public async Task<bool> UpdateEmployee(int EmployeeId, EmployeeUpdateDTO employeeDTO)
         {
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
             using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
@@ -208,15 +208,15 @@ namespace Integration_System.DAL
                 await connectionSQLServer.OpenAsync();
                 string querySQLServer = @"UPDATE Employees SET FullName = @FullName, DateofBirth = @DateofBirth, Gender = @Gender, PhoneNumber = @PhoneNumber, Email = @Email, HireDate = @HireDate, DepartmentId = @DepartmentId, PositionId = @PositionId, Status = @Status, CreatedAt = @CreatedAt, UpdatedAt = @UpdatedAt WHERE EmployeeId = @EmployeeId";
                 SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
-                commandSQLServer.Parameters.AddWithValue("@FullName", employee.FullName);
-                commandSQLServer.Parameters.AddWithValue("@DateofBirth", employee.DateofBirth);
-                commandSQLServer.Parameters.AddWithValue("@Gender", employee.Gender);
-                commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employee.PhoneNumber);
-                commandSQLServer.Parameters.AddWithValue("@Email", employee.Email);
-                commandSQLServer.Parameters.AddWithValue("@HireDate", employee.HireDate);
-                commandSQLServer.Parameters.AddWithValue("@DepartmentId", employee.DepartmentId);
-                commandSQLServer.Parameters.AddWithValue("@PositionId", employee.PositionId);
-                commandSQLServer.Parameters.AddWithValue("@Status", employee.Status);
+                commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+                commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
+                commandSQLServer.Parameters.AddWithValue("@Gender", employeeDTO.Gender);
+                commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employeeDTO.PhoneNumber);
+                commandSQLServer.Parameters.AddWithValue("@Email", employeeDTO.Email);
+                commandSQLServer.Parameters.AddWithValue("@HireDate", employeeDTO.HireDate);
+                commandSQLServer.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+                commandSQLServer.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+                commandSQLServer.Parameters.AddWithValue("@Status", employeeDTO.Status);
                 commandSQLServer.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                 commandSQLServer.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
                 commandSQLServer.Parameters.AddWithValue("@EmployeeId", EmployeeId);
@@ -226,10 +226,10 @@ namespace Integration_System.DAL
                 await connectionMySQL.OpenAsync();
                 string queryMySQL = @"UPDATE employees SET FullName = @FullName, DepartmentId = @DepartmentId, PositionId = @PositionId, Status = @Status WHERE EmployeeId = @EmployeeId";
                 MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
-                commandMySQL.Parameters.AddWithValue("@FullName", employee.FullName);
-                commandMySQL.Parameters.AddWithValue("@DepartmentId", employee.DepartmentId);
-                commandMySQL.Parameters.AddWithValue("@PositionId", employee.PositionId);
-                commandMySQL.Parameters.AddWithValue("@Status", employee.Status);
+                commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+                commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+                commandMySQL.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+                commandMySQL.Parameters.AddWithValue("@Status", employeeDTO.Status);
                 commandMySQL.Parameters.AddWithValue("@EmployeeId", EmployeeId);
                 int affectedRowsMySQL = await commandMySQL.ExecuteNonQueryAsync();
                 // Check if the update was successful in both databases
