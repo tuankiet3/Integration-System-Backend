@@ -2,7 +2,8 @@
 using Integration_System.Model;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
-
+using Integration_System.Dtos;
+using Integration_System.Dtos.EmployeeDTO;
 namespace Integration_System.Controllers
 {
     [Route("api/employees")] // Route to access the API
@@ -38,7 +39,7 @@ namespace Integration_System.Controllers
         }
 
 
-        [HttpGet("{id}")] // api/employees/{id}
+        [HttpGet("{EmployeeId}")] // api/employees/{id}
         [ProducesResponseType(typeof(EmployeeModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -46,11 +47,11 @@ namespace Integration_System.Controllers
         {
             try
             {
-                EmployeeModel employee = await _employeeDAL.GetEmployeeIdAsync(EmployeeId);
+                EmployeeGetDTO employee = await _employeeDAL.GetEmployeeIdAsync(EmployeeId);
                 if (employee == null)
                 {
                     _logger.LogWarning($"Employee with ID {EmployeeId} not found");
-                    return NotFound();
+                    return NotFound("Employee is not founded");
                 }
                 _logger.LogInformation($"Retrieved employee with ID {EmployeeId} successfully");
                 return Ok(employee);
@@ -65,16 +66,16 @@ namespace Integration_System.Controllers
         [ProducesResponseType(typeof(EmployeeModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> CreateEmployee([FromBody] EmployeeModel employee)
+        public async Task<IActionResult> CreateEmployee([FromBody] EmployeeInsertDTO employeeDTO)
         {
-            if (employee == null)
+            if (employeeDTO == null)
             {
                 _logger.LogWarning("Employee object is null");
                 return BadRequest("Employee object is null");
             }
             try
             {
-                bool createdEmployee = await _employeeDAL.InsertEmployeeAsync(employee);
+                bool createdEmployee = await _employeeDAL.InsertEmployeeAsync(employeeDTO);
                 if (!createdEmployee)
                 {
                     _logger.LogWarning("Failed to create employee");
@@ -93,21 +94,21 @@ namespace Integration_System.Controllers
             }
         }
 
-        [HttpPut("{id}")] // api/employees/{id}
+        [HttpPut("{EmployeeId}")] // api/employees/{id}
         [ProducesResponseType(typeof(EmployeeModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateEmployee(int EmployeeId, [FromBody] EmployeeModel employee)
+        public async Task<IActionResult> UpdateEmployee(int EmployeeId, [FromBody] EmployeeUpdateDTO employeeDTO)
         {
-            if (employee == null)
+            if (employeeDTO == null)
             {
                 _logger.LogWarning("Employee object is null");
                 return BadRequest("Employee object is null");
             }
             try
             {
-                bool updatedEmployee = await _employeeDAL.UpdateEmployee(EmployeeId, employee);
+                bool updatedEmployee = await _employeeDAL.UpdateEmployee(EmployeeId, employeeDTO);
                 if (!updatedEmployee)
                 {
                     _logger.LogWarning($"Failed to update employee with ID {EmployeeId}");
@@ -122,7 +123,7 @@ namespace Integration_System.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
             }
         }
-        [HttpDelete("{id}")] // api/employees/{id}
+        [HttpDelete("{EmployeeId}")] // api/employees/{id}
         [ProducesResponseType(typeof(EmployeeModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -137,7 +138,7 @@ namespace Integration_System.Controllers
                     return NotFound();
                 }
                 _logger.LogInformation($"Employee with ID {EmployeeId} deleted successfully");
-                return Ok(new {Message ="Deleted sucsessasdajsd"});
+                return Ok(new {Message ="Employee Deleted successfully"});
             }
             catch (Exception ex)
             {

@@ -1,7 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
+
 namespace Integration_System.Dtos.EmployeeDTO
 {
-    public class EmployeeUpdateDTO
+    public class EmployeeInsertDTO
     {
         ////////////////////
         [Required(ErrorMessage = "Họ tên là bắt buộc")]

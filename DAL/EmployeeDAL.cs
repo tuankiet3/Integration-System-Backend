@@ -5,6 +5,7 @@ using Integration_System.Dtos;
 using Microsoft.Data.SqlClient.DataClassification;
 using System.Data;
 using Integration_System.Dtos.EmployeeDTO;
+using MySqlX.XDevAPI.Common;
 namespace Integration_System.DAL
 {
     public class EmployeeDAL
@@ -12,7 +13,6 @@ namespace Integration_System.DAL
         public readonly string _mySQlConnectionString;
         public readonly string _SQLServerConnectionString;
         private readonly ILogger<EmployeeDAL> _logger;
-
         public EmployeeDAL(ILogger<EmployeeDAL> logger, IConfiguration configuration)
         {
             _logger = logger;
@@ -24,12 +24,12 @@ namespace Integration_System.DAL
         {
             return new EmployeeModel
             {
-                EmployeeId = reader.GetInt32(reader.GetOrdinal("EmployeeId")),
+                EmployeeId = reader.GetInt32(reader.GetOrdinal("EmployeeID")),
                 FullName = reader.GetString(reader.GetOrdinal("FullName")),
-                DepartmentId = reader.IsDBNull(reader.GetOrdinal("DepartmentId"))
-                ? 0 : reader.GetInt32(reader.GetOrdinal("DepartmentId")),
-                PositionId = reader.IsDBNull(reader.GetOrdinal("PositionId"))
-                ? 0 : reader.GetInt32(reader.GetOrdinal("PositionId")),
+                DepartmentId = reader.IsDBNull(reader.GetOrdinal("DepartmentID"))
+                ? 0 : reader.GetInt32(reader.GetOrdinal("DepartmentID")),
+                PositionId = reader.IsDBNull(reader.GetOrdinal("PositionID"))
+                ? 0 : reader.GetInt32(reader.GetOrdinal("PositionID")),
                 Status = reader.IsDBNull(reader.GetOrdinal("Status"))
                 ? string.Empty : reader.GetString(reader.GetOrdinal("Status")),
             };
@@ -39,24 +39,40 @@ namespace Integration_System.DAL
         {
             return new EmployeeModel
             {
-                EmployeeId = reader.GetInt32(reader.GetOrdinal("EmployeeId")),
+                EmployeeId = reader.GetInt32(reader.GetOrdinal("EmployeeID")),
                 FullName = reader.GetString(reader.GetOrdinal("FullName")),
                 DateofBirth = reader.GetDateTime(reader.GetOrdinal("DateofBirth")),
                 Gender = reader.IsDBNull(reader.GetOrdinal("Gender"))
-                ? false : reader.GetBoolean(reader.GetOrdinal("Gender")),
+                ? "null" : reader.GetString(reader.GetOrdinal("Gender")),
                 PhoneNumber = reader.IsDBNull(reader.GetOrdinal("PhoneNumber"))
                 ? string.Empty : reader.GetString(reader.GetOrdinal("PhoneNumber")),
                 Email = reader.IsDBNull(reader.GetOrdinal("Email"))
                 ? string.Empty : reader.GetString(reader.GetOrdinal("Email")),
                 HireDate = reader.GetDateTime(reader.GetOrdinal("HireDate")),
-                DepartmentId = reader.IsDBNull(reader.GetOrdinal("DepartmentId"))
-                ? 0 : reader.GetInt32(reader.GetOrdinal("DepartmentId")),
-                PositionId = reader.IsDBNull(reader.GetOrdinal("PositionId"))
-                ? 0 : reader.GetInt32(reader.GetOrdinal("PositionId")),
+                DepartmentId = reader.IsDBNull(reader.GetOrdinal("DepartmentID"))
+                ? 0 : reader.GetInt32(reader.GetOrdinal("DepartmentID")),
+                PositionId = reader.IsDBNull(reader.GetOrdinal("PositionID"))
+                ? 0 : reader.GetInt32(reader.GetOrdinal("PositionID")),
                 Status = reader.IsDBNull(reader.GetOrdinal("Status"))
                 ? string.Empty : reader.GetString(reader.GetOrdinal("Status")),
                 CreatedAt = reader.GetDateTime("CreatedAt"),
                 UpdatedAt = reader.GetDateTime("UpdatedAt")
+            };
+        }
+        public EmployeeGetDTO MapReaderSQLServerToGetEmployeeModel(SqlDataReader reader)
+        {
+            return new EmployeeGetDTO
+            {
+               
+                FullName = reader.GetString(reader.GetOrdinal("FullName")),
+                DateOfBirth = reader.GetDateTime(reader.GetOrdinal("DateofBirth")),
+                Gender =reader.GetString(reader.GetOrdinal("Gender")),
+                PhoneNumber = reader.GetString(reader.GetOrdinal("PhoneNumber")),
+                Email = reader.GetString(reader.GetOrdinal("Email")),
+                HireDate = reader.GetDateTime(reader.GetOrdinal("HireDate")),
+                DepartmentId = reader.GetInt32(reader.GetOrdinal("DepartmentID")),
+                PositionId = reader.GetInt32(reader.GetOrdinal("PositionID")),
+                Status =reader.GetString(reader.GetOrdinal("Status")),
             };
         }
 
@@ -96,7 +112,7 @@ namespace Integration_System.DAL
             return employees;
         }
 
-        public async Task<bool> InsertEmployeeAsync(EmployeeUpdateDTO employeeDTO)
+        public async Task<bool> InsertEmployeeAsync(EmployeeInsertDTO employeeDTO)
         {
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
             using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
@@ -106,7 +122,7 @@ namespace Integration_System.DAL
                 // Insert into SQL Server
                 await connectionSQLServer.OpenAsync();
                 Console.WriteLine("✅ Kết nối SQl Server thành công!");
-                string querySQLServer = @"INSERT INTO Employees (FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentId, PositionId, Status, CreatedAt, UpdatedAt) VALUES (@FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt)";
+                string querySQLServer = @"INSERT INTO Employees (FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentID, PositionID, Status, CreatedAt, UpdatedAt) VALUES (@FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt)";
                 SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
                 commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
                 commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
@@ -123,8 +139,10 @@ namespace Integration_System.DAL
                 // Insert into MySQL
                 await connectionMySQL.OpenAsync();
                 Console.WriteLine("✅ Kết nối MySQL thành công!");
-                string queryMySQL = @"INSERT INTO employees (FullName, DepartmentId, PositionId, Status) VALUES (@FullName, @DepartmentId, @PositionId, @Status)";
+                string queryMySQL = @"INSERT INTO employees (EmployeeID, FullName, DepartmentID, PositionID, Status) VALUES (@EmployeeID, @FullName, @DepartmentId, @PositionId, @Status)";
                 MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
+                int maxID = await maxEmployeeID() + 1;
+                commandMySQL.Parameters.AddWithValue("@EmployeeID",maxID);
                 commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
                 commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
                 commandMySQL.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
@@ -165,13 +183,14 @@ namespace Integration_System.DAL
             {
                 // Delete from MySQL
                 await connectionMySQL.OpenAsync();
-                string queryMySQL = @"DELETE FROM employees WHERE EmployeeId = @EmployeeId";
+                string queryMySQL = @"DELETE FROM employees WHERE EmployeeID = @EmployeeId";
                 MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
                 commandMySQL.Parameters.AddWithValue("@EmployeeId", EmployeeId);
                 int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
                 // Delete from SQL Server
                 await connectionSQLServer.OpenAsync();
-                string querySQLServer = "DELETE FROM Employees WHERE EmployeeId = @EmployeeId";
+                string querySQLServer = "DELETE FROM Employees WHERE EmployeeID = @EmployeeId; " +
+                                         "IF NOT EXISTS (SELECT 1 FROM Employees) DBCC CHECKIDENT ('Employees', RESEED, 0);";
                 SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
                 commandSQLServer.Parameters.AddWithValue("@EmployeeId", EmployeeId);
                 int rowsAffectedSQLServer = await commandSQLServer.ExecuteNonQueryAsync();
@@ -203,10 +222,12 @@ namespace Integration_System.DAL
         {
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
             using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
+            Console.WriteLine(employeeDTO);
+            Console.WriteLine(EmployeeId);
             try
             {
                 await connectionSQLServer.OpenAsync();
-                string querySQLServer = @"UPDATE Employees SET FullName = @FullName, DateofBirth = @DateofBirth, Gender = @Gender, PhoneNumber = @PhoneNumber, Email = @Email, HireDate = @HireDate, DepartmentId = @DepartmentId, PositionId = @PositionId, Status = @Status, CreatedAt = @CreatedAt, UpdatedAt = @UpdatedAt WHERE EmployeeId = @EmployeeId";
+                string querySQLServer = @"UPDATE Employees SET FullName = @FullName, DateofBirth = @DateofBirth, Gender = @Gender, PhoneNumber = @PhoneNumber, Email = @Email, HireDate = @HireDate, DepartmentID = @DepartmentId, PositionID = @PositionId, Status = @Status,  UpdatedAt = @UpdatedAt WHERE EmployeeID = @EmployeeId";
                 SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
                 commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
                 commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
@@ -217,14 +238,13 @@ namespace Integration_System.DAL
                 commandSQLServer.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
                 commandSQLServer.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
                 commandSQLServer.Parameters.AddWithValue("@Status", employeeDTO.Status);
-                commandSQLServer.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                 commandSQLServer.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
                 commandSQLServer.Parameters.AddWithValue("@EmployeeId", EmployeeId);
                 int affectedRowsSQLServer = await commandSQLServer.ExecuteNonQueryAsync();
             
 
                 await connectionMySQL.OpenAsync();
-                string queryMySQL = @"UPDATE employees SET FullName = @FullName, DepartmentId = @DepartmentId, PositionId = @PositionId, Status = @Status WHERE EmployeeId = @EmployeeId";
+                string queryMySQL = @"UPDATE employees SET FullName = @FullName, DepartmentID= @DepartmentId, PositionID = @PositionId, Status = @Status WHERE EmployeeId = @EmployeeId";
                 MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
                 commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
                 commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
@@ -254,23 +274,27 @@ namespace Integration_System.DAL
                 await connectionMySQL.CloseAsync();
             }
         }
-       public async Task<EmployeeModel> GetEmployeeIdAsync(int EmployeeId)
+       public async Task<EmployeeGetDTO> GetEmployeeIdAsync(int EmployeeId)
         {
-            EmployeeModel employee = new EmployeeModel();
+            EmployeeGetDTO employee = new EmployeeGetDTO();
             using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
             SqlDataReader readerSQLServer = null;
             try
             {
                 await connectionSQLServer.OpenAsync();
-                string query = "SELECT * FROM Employees WHERE EmployeeId = @EmployeeId";
+                string query = "SELECT * FROM Employees WHERE EmployeeID= @EmployeeId";
                 SqlCommand command = new SqlCommand(query, connectionSQLServer);
                 command.Parameters.AddWithValue("@EmployeeId", EmployeeId);
                 readerSQLServer = (SqlDataReader)await command.ExecuteReaderAsync();
                 if (await readerSQLServer.ReadAsync())
                 {
-                    employee = MapReaderSQLServerToEmployeeModel(readerSQLServer);
+                    employee = MapReaderSQLServerToGetEmployeeModel(readerSQLServer);
                 }
-                _logger.LogInformation("Successfully retrieved employee.");
+                else
+                {
+                    return null;
+                }
+                    _logger.LogInformation("Successfully retrieved employee.");
             }
             catch (Exception ex)
             {
@@ -286,6 +310,16 @@ namespace Integration_System.DAL
                 await connectionSQLServer.CloseAsync();
             }
             return employee;
+        }
+        public async Task<int> maxEmployeeID()
+        {
+            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
+            await connectionMySQL.OpenAsync();
+            string query = "SELECT MAX(EmployeeID) FROM employees;";
+            MySqlCommand command = new MySqlCommand(query, connectionMySQL);
+            object result = await command.ExecuteScalarAsync(); // Trả về object vì kết quả có thể là int, null, decimal, v.v...
+            int max = result != DBNull.Value ? Convert.ToInt32(result) : 0;
+            return max;
         }
     }
 }
