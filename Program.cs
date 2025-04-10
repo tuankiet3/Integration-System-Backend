@@ -9,6 +9,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<EmployeeDAL>();
+builder.Services.AddScoped<SalaryDAL>();
+builder.Services.AddScoped<PositionDAL>();
+builder.Services.AddScoped<DepartmentDAL>();
 var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
