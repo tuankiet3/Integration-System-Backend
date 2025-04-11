@@ -65,128 +65,6 @@ namespace Integration_System.DAL
             }
             return salaries;
         }
-        public async Task<SalaryModel> getSalaryBySalaryID(int salaryID)
-        {
-            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-            MySqlDataReader readerMySQL = null;
-            SalaryModel salary = new SalaryModel();
-            try
-            {
-                await connectionMySQL.OpenAsync();
-                string query = @"SELECT s.SalaryID, s.EmployeeID, s.SalaryMonth, s.BaseSalary, s.Bonus, s.Deductions, s.NetSalary FROM salaries s WHERE SalaryID = @SalaryID";
-                MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-                command.Parameters.AddWithValue("@SalaryID", salaryID);
-                readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync();
-                if (await readerMySQL.ReadAsync())
-                {
-                    salary = MapReaderMySQlToSalaryModel(readerMySQL);
-                }
-                else
-                {
-                    return null; // No salary found with the given ID
-                }
-                    _logger.LogInformation("Successfully retrieved employee.");
-                return salary;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving salary by ID");
-                return null;
-            }
-            finally
-            {
-                if (readerMySQL != null)
-                {
-                    await readerMySQL.CloseAsync();
-                }
-                await connectionMySQL.CloseAsync();
-            }
-        }
-        public async Task<bool> DeleteSalary(int SalaryID)
-        {
-            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-            MySqlDataReader readerMySQL = null;
-            try
-            {
-                await connectionMySQL.OpenAsync();
-                string query = @"DELETE FROM salaries WHERE SalaryID = @SalaryID ";
-                MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-                command.Parameters.AddWithValue("@SalaryID", SalaryID);
-                int rowsAffected = await command.ExecuteNonQueryAsync();
-                if (rowsAffected > 0)
-                {
-                    string checkEmpty = "SELECT COUNT(*) FROM salaries";
-                    MySqlCommand commandCount = new MySqlCommand(checkEmpty, connectionMySQL);
-                    long count = (long)await commandCount.ExecuteScalarAsync();
-                    if (count == 0)
-                    {
-                        string resetQuery = "ALTER TABLE salaries AUTO_INCREMENT = 1;";
-                        using var resetCommand = new MySqlCommand(resetQuery, connectionMySQL);
-                        await resetCommand.ExecuteNonQueryAsync();
-                    }
-                        _logger.LogInformation($"Successfully deleted salary with ID {SalaryID}.");
-                        return true;
-                    
-                }
-                else
-                {
-                    _logger.LogWarning($"No salary found with ID {SalaryID}.");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting salary");
-                return false;
-            }
-            finally
-            {
-                if (readerMySQL != null)
-                {
-                    await readerMySQL.CloseAsync();
-                }
-                await connectionMySQL.CloseAsync();
-            }
-        }
-
-        public async Task<bool> UpdateSalary(int SalaryID, SalaryUpdateDTO salary)
-        {
-            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-            try
-            {
-                await connectionMySQL.OpenAsync();
-                string query = @"UPDATE salaries SET EmployeeID = @EmployeeID, SalaryMonth = @SalaryMonth, BaseSalary = @BaseSalary, Bonus = @Bonus, Deductions = @Deductions, NetSalary = @NetSalary WHERE SalaryID = @SalaryID";
-                MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-                command.Parameters.AddWithValue("@EmployeeID", salary.EmployeeId);
-                command.Parameters.AddWithValue("@SalaryMonth", salary.SalaryMonth);
-                command.Parameters.AddWithValue("@BaseSalary", salary.BaseSalary);
-                command.Parameters.AddWithValue("@Bonus", salary.Bonus);
-                command.Parameters.AddWithValue("@Deductions", salary.Deductions);
-                command.Parameters.AddWithValue("@NetSalary", salary.NetSalary);
-                command.Parameters.AddWithValue("@SalaryID", SalaryID);
-                int rowsAffected = await command.ExecuteNonQueryAsync();
-                if (rowsAffected > 0)
-                {
-                    _logger.LogInformation($"Successfully updated salary with ID {SalaryID}.");
-                    return true;
-                }
-                else
-                {
-                    _logger.LogWarning($"No salary found with ID {SalaryID}.");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating salary");
-                return false;
-            }
-            finally
-            {
-                await connectionMySQL.CloseAsync();
-            }
-        }
-
         public async Task<bool> InserSalary(SalaryInsertDTO salary)
         {
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
@@ -201,7 +79,7 @@ namespace Integration_System.DAL
                 command.Parameters.AddWithValue("@Bonus", salary.Bonus);
                 command.Parameters.AddWithValue("@Deductions", salary.Deductions);
                 command.Parameters.AddWithValue("@NetSalary", salary.NetSalary);
-                command.Parameters.AddWithValue("@CreatedAt", DateTime.Now);  
+                command.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                 int rowsAffected = await command.ExecuteNonQueryAsync();
                 if (rowsAffected > 0)
                 {
@@ -227,15 +105,90 @@ namespace Integration_System.DAL
                 await connectionMySQL.CloseAsync();
             }
         }
-        public async Task<bool> CheckEmployeeID (int employeeID)
+        public async Task<SalaryModel> getHistorySalary(int employeeID, int month)
         {
-                using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-                await connectionMySQL.OpenAsync();
-                string query = @"SELECT COUNT(*) FROM salaries WHERE EmployeeID = @EmployeeID";
-                MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-                command.Parameters.AddWithValue("@EmployeeId", employeeID);
-                long count = (long)await command.ExecuteScalarAsync();
-                return count > 0;
+            using var connectionMySQl = new MySqlConnection(_mySQlConnectionString);
+            MySqlDataReader readerMySQL = null;
+            SalaryModel salary = new SalaryModel();
+            try
+            {
+                await connectionMySQl.OpenAsync();
+                string query = @"SELECT * FROM salaries WHERE EmployeeID = @EmployeeID AND MONTH(SalaryMonth) = @SalaryMonth";
+                MySqlCommand command = new MySqlCommand(query, connectionMySQl);
+                command.Parameters.AddWithValue("@EmployeeID", employeeID);
+                command.Parameters.AddWithValue("@SalaryMonth", month);
+                readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync();
+                if (await readerMySQL.ReadAsync())
+                {
+                    salary = MapReaderMySQlToSalaryModel(readerMySQL);
+                }
+                else
+                {
+                    _logger.LogWarning("not found historical salary of employee.");
+                    return null; // No salary found with the given ID
+                }
+                _logger.LogInformation("Successfully retrieved historical salary of employee.");
+                return salary;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving employee");
+                return null;
+            }
+            finally
+            {
+                if (readerMySQL != null)
+                {
+                    await readerMySQL.CloseAsync();
+                }
+                await connectionMySQl.CloseAsync();
+            }
         }
+        //public async Task<bool> DeleteSalary(int SalaryID)
+        //{
+        //    using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
+        //    MySqlDataReader readerMySQL = null;
+        //    try
+        //    {
+        //        await connectionMySQL.OpenAsync();
+        //        string query = @"DELETE FROM salaries WHERE SalaryID = @SalaryID ";
+        //        MySqlCommand command = new MySqlCommand(query, connectionMySQL);
+        //        command.Parameters.AddWithValue("@SalaryID", SalaryID);
+        //        int rowsAffected = await command.ExecuteNonQueryAsync();
+        //        if (rowsAffected > 0)
+        //        {
+        //            string checkEmpty = "SELECT COUNT(*) FROM salaries";
+        //            MySqlCommand commandCount = new MySqlCommand(checkEmpty, connectionMySQL);
+        //            long count = (long)await commandCount.ExecuteScalarAsync();
+        //            if (count == 0)
+        //            {
+        //                string resetQuery = "ALTER TABLE salaries AUTO_INCREMENT = 1;";
+        //                using var resetCommand = new MySqlCommand(resetQuery, connectionMySQL);
+        //                await resetCommand.ExecuteNonQueryAsync();
+        //            }
+        //            _logger.LogInformation($"Successfully deleted salary with ID {SalaryID}.");
+        //            return true;
+
+        //        }
+        //        else
+        //        {
+        //            _logger.LogWarning($"No salary found with ID {SalaryID}.");
+        //            return false;
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error deleting salary");
+        //        return false;
+        //    }
+        //    finally
+        //    {
+        //        if (readerMySQL != null)
+        //        {
+        //            await readerMySQL.CloseAsync();
+        //        }
+        //        await connectionMySQL.CloseAsync();
+        //    }
+        //}
     }
 }
