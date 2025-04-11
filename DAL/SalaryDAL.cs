@@ -67,6 +67,7 @@ namespace Integration_System.DAL
         }
         public async Task<bool> InserSalary(SalaryInsertDTO salary)
         {
+            
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
             try
             {
@@ -78,25 +79,25 @@ namespace Integration_System.DAL
                 command.Parameters.AddWithValue("@BaseSalary", salary.BaseSalary);
                 command.Parameters.AddWithValue("@Bonus", salary.Bonus);
                 command.Parameters.AddWithValue("@Deductions", salary.Deductions);
-                command.Parameters.AddWithValue("@NetSalary", salary.NetSalary);
+                decimal NetSalary = salary.BaseSalary + (salary.Bonus ?? 0) - (salary.Deductions ?? 0);
+                command.Parameters.AddWithValue("@NetSalary", NetSalary);
                 command.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                 int rowsAffected = await command.ExecuteNonQueryAsync();
                 if (rowsAffected > 0)
-                {
-                    Console.WriteLine("1");
+                { 
                     _logger.LogInformation($"Successfully inserted salary.");
                     return true;
                 }
                 else
                 {
-                    Console.WriteLine("22");
+       
                     _logger.LogWarning($"Failed to insert salary.");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("23");
+            
                 _logger.LogError(ex, "Error inserting salary");
                 return false;
             }
@@ -190,5 +191,43 @@ namespace Integration_System.DAL
         //        await connectionMySQL.CloseAsync();
         //    }
         //}
+        public async Task<SalaryModel> getLatestEmployeeID(int EmployeeID)
+        {
+            using var mySqlConnection = new MySqlConnection(_mySQlConnectionString);
+            MySqlDataReader readerMySQL = null;
+            SalaryModel salary = new SalaryModel();
+            try
+            {
+                await mySqlConnection.OpenAsync();
+                string query = @"SELECT TOP 1 * FROM salaries WHERE EmployeeID = @EmployeeID ORDER BY SalaryMonth DESC";
+                MySqlCommand command = new MySqlCommand(query, mySqlConnection);
+                command.Parameters.AddWithValue("@EmployeeID", EmployeeID);
+                readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync();
+                if (await readerMySQL.ReadAsync())
+                {
+                    salary = MapReaderMySQlToSalaryModel(readerMySQL);
+                }
+                else
+                {
+                    _logger.LogWarning("not found historical salary of employee.");
+                    return null; // No salary found with the given ID
+                }
+                _logger.LogInformation("Successfully retrieved historical salary of employee.");
+                return salary;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving employee");
+                return null;
+            }
+            finally
+            {
+                if (readerMySQL != null)
+                {
+                    await readerMySQL.CloseAsync();
+                }
+                await mySqlConnection.CloseAsync();
+            }
+        }
     }
 }
