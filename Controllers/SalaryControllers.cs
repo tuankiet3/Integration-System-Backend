@@ -1,11 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Integration_System.DAL;
 using Integration_System.Model;
+using Integration_System.Services;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Integration_System.Dtos;
 using Integration_System.Dtos.SalaryDTO;
+using Integration_System.Middleware;
+using Integration_System.Dtos.NotificationDTO;
 namespace Integration_System.Controllers
 {
     [Route("api/salaries")] // Route to access the API
@@ -14,11 +17,17 @@ namespace Integration_System.Controllers
     {
         private readonly SalaryDAL _salaryDAL;
         private readonly ILogger<SalaryControllers> _logger;
-        public SalaryControllers(SalaryDAL salaryDAL, ILogger<SalaryControllers> logger)
+        private readonly NotificationSalaryMDW _notificationSalary;
+        private readonly NotificationSalaryService _notificationSalaryService;
+        // Constructor to initialize dependencies
+        public SalaryControllers(SalaryDAL salaryDAL, ILogger<SalaryControllers> logger, NotificationSalaryMDW notificationSalary, NotificationSalaryService notificationSalaryService)
         {
             _salaryDAL = salaryDAL;
             _logger = logger;
+            _notificationSalary = notificationSalary;
+            _notificationSalaryService = notificationSalaryService;
         }
+        // GET all salaries
         [HttpGet] // api/salaries
         [ProducesResponseType(typeof(IEnumerable<SalaryModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -36,6 +45,7 @@ namespace Integration_System.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
             }
         }
+        // GET salary by employee ID and month
         [HttpGet("/history/{employeeID}/{month}")] // api/salaries/history/{id}/{id}
         [ProducesResponseType(typeof(SalaryModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -59,6 +69,7 @@ namespace Integration_System.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
             }
         }
+        // Insert salary by employee ID
         [HttpPost] // api/salaries
         [ProducesResponseType(statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -71,8 +82,10 @@ namespace Integration_System.Controllers
                 return BadRequest("Salary object is null");
             }
             try
-            { 
-                    bool createdSalary = await _salaryDAL.InserSalary(salary);
+            {
+                bool isWarning = await _notificationSalary.CheckAndNotifySalary(salary);
+                Console.WriteLine(isWarning);
+                bool createdSalary = await _salaryDAL.InserSalary(salary);
                     if(createdSalary == true)
                     {
                         _logger.LogInformation($"Created salary successfully for EmployeeId {salary.EmployeeId}");
@@ -89,6 +102,23 @@ namespace Integration_System.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating salary");
+                return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
+            }
+        }
+        // GET all salary notifications
+        [HttpGet("notifications")]
+        [ProducesResponseType(typeof(List<NotificationSalaryDTO>), statusCode: 200)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetSalaryNotifications()
+        {
+            try
+            {
+                var notifications = await _notificationSalaryService.GetAllNotificationsAsync();
+                return Ok(notifications);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving salary notifications from Redis");
                 return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
             }
         }

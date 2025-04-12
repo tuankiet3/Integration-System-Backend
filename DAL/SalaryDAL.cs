@@ -199,7 +199,7 @@ namespace Integration_System.DAL
             try
             {
                 await mySqlConnection.OpenAsync();
-                string query = @"SELECT TOP 1 * FROM salaries WHERE EmployeeID = @EmployeeID ORDER BY SalaryMonth DESC";
+                string query = @"SELECT * FROM salaries  WHERE EmployeeID = @EmployeeID ORDER BY CreatedAt DESC LIMIT 1";
                 MySqlCommand command = new MySqlCommand(query, mySqlConnection);
                 command.Parameters.AddWithValue("@EmployeeID", EmployeeID);
                 readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync();

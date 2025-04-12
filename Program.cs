@@ -1,4 +1,9 @@
 ﻿using Integration_System.DAL;
+using Integration_System.Middleware;
+using Integration_System.Model;
+using Integration_System.Services;
+
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +27,9 @@ builder.Services.AddCors(options =>
                   .AllowAnyMethod();
         });
 });
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect("localhost:6379")); // hoặc redis:6379 nếu dùng Docker
+builder.Services.AddSingleton<NotificationSalaryService>();
+builder.Services.AddScoped<NotificationSalaryMDW>();
 var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
