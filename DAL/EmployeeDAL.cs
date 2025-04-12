@@ -1,11 +1,12 @@
 ﻿using Integration_System.Model;
 using MySql.Data.MySqlClient;
 using Microsoft.Data.SqlClient;
-using Integration_System.Dtos;
 using Microsoft.Data.SqlClient.DataClassification;
 using System.Data;
 using Integration_System.Dtos.EmployeeDTO;
 using MySqlX.XDevAPI.Common;
+using System.Collections.Generic;
+using Integration_System.Dtos.ReportDto;
 namespace Integration_System.DAL
 {
     public class EmployeeDAL
@@ -317,9 +318,88 @@ namespace Integration_System.DAL
             await connectionMySQL.OpenAsync();
             string query = "SELECT MAX(EmployeeID) FROM employees;";
             MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-            object result = await command.ExecuteScalarAsync(); // Trả về object vì kết quả có thể là int, null, decimal, v.v...
-            int max = result != DBNull.Value ? Convert.ToInt32(result) : 0;
+            object? result = await command.ExecuteScalarAsync(); // Allow nullable object
+            int max = result != null && result != DBNull.Value ? Convert.ToInt32(result) : 0; // Handle null and DBNull
             return max;
+        }
+
+        // method of report
+
+        public async Task<List<DistributionByDeptDto>> GetEmployeeDistributionByDeptAsync()
+        {
+            var distribution = new List<DistributionByDeptDto>();
+            using var connection = new SqlConnection(_SQLServerConnectionString);
+            string query = @"
+                SELECT ISNULL(d.DepartmentName, 'N/A') as DepartmentName, COUNT(e.EmployeeID) as EmployeeCount
+                FROM Employees e
+                LEFT JOIN Departments d ON e.DepartmentID = d.DepartmentID
+                GROUP BY ISNULL(d.DepartmentName, 'N/A')
+                ORDER BY DepartmentName;";
+            SqlCommand command = new SqlCommand(query, connection);
+
+            try
+            {
+                await connection.OpenAsync();
+                SqlDataReader reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    distribution.Add(new DistributionByDeptDto
+                    {
+                        DepartmentName = reader.GetString(reader.GetOrdinal("DepartmentName")),
+                        EmployeeCount = reader.GetInt32(reader.GetOrdinal("EmployeeCount"))
+                    });
+                }
+                await reader.CloseAsync();
+                _logger.LogInformation("Retrieved employee distribution by department.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting employee distribution by department.");
+                throw;
+            }
+            finally
+            {
+                if (connection.State == ConnectionState.Open) await connection.CloseAsync();
+            }
+            return distribution;
+        }
+
+        public async Task<List<StatusDistributionDto>> GetEmployeeDistributionByStatusAsync()
+        {
+            var distribution = new List<StatusDistributionDto>();
+            using var connection = new SqlConnection(_SQLServerConnectionString);
+            string query = @"
+                SELECT ISNULL(Status, 'N/A') as Status, COUNT(EmployeeID) as EmployeeCount
+                FROM Employees
+                GROUP BY ISNULL(Status, 'N/A')
+                ORDER BY Status;";
+            SqlCommand command = new SqlCommand(query, connection);
+
+            try
+            {
+                await connection.OpenAsync();
+                SqlDataReader reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    distribution.Add(new StatusDistributionDto
+                    {
+                        Status = reader.GetString(reader.GetOrdinal("Status")),
+                        EmployeeCount = reader.GetInt32(reader.GetOrdinal("EmployeeCount"))
+                    });
+                }
+                await reader.CloseAsync();
+                _logger.LogInformation("Retrieved employee distribution by status.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting employee distribution by status.");
+                throw;
+            }
+            finally
+            {
+                if (connection.State == ConnectionState.Open) await connection.CloseAsync();
+            }
+            return distribution;
         }
     }
 }

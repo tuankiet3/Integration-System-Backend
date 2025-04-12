@@ -6,20 +6,20 @@ using System.Collections.Generic;
 
 namespace Integration_System.Controllers
 {
-    [Route("api/[controller]")] // api/timekeeping
+    [Route("api/[controller]")] // api/addtendances
     [ApiController]
-    public class TimekeepingController : Controller
+    public class AttendancesController : Controller
     {
         private readonly AttendanceDAL _attendanceDAL;
-        private readonly ILogger<TimekeepingController> _logger;
+        private readonly ILogger<AttendancesController> _logger;
 
-        public TimekeepingController(IConfiguration configuration,ILogger<TimekeepingController> logger,ILogger<AttendanceDAL> dalLogger)
+        public AttendancesController(IConfiguration configuration,ILogger<AttendancesController> logger,ILogger<AttendanceDAL> dalLogger)
         {
             _logger = logger;
             _attendanceDAL = new AttendanceDAL(configuration, dalLogger);
         }
 
-        [HttpGet] //GET: api/timekeeping
+        [HttpGet] //GET: api/attendances
         [ProducesResponseType(typeof(IEnumerable<AttendanceModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllAttendances()
@@ -37,7 +37,7 @@ namespace Integration_System.Controllers
             }
         }
 
-        [HttpGet("{attendanceId}")] //GET: api/timekeeping/{attendanceId}
+        [HttpGet("{attendanceId}")] //GET: api/attendances/{attendanceId}
         [ProducesResponseType(typeof(AttendanceModel), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -60,45 +60,6 @@ namespace Integration_System.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
             }
         }
-
-        // PUT: api/timekeeping/{id}
-        [HttpPut("{attendanceId}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateAttendance(int attendanceId, [FromBody] UpdateAttendanceDto attendanceDto)
-        {
-            // Validate DTO
-            if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("Request updateattendance is not valid for ID {AttendanceID}: {Modelstate}", attendanceId, ModelState);
-                return ValidationProblem(ModelState);
-            }
-
-            // check if attendance record exists
-            var existingRecord = await _attendanceDAL.GetAttendanceByAttendanceIdAsync(attendanceId);
-            if (existingRecord == null)
-            {
-                _logger.LogWarning("The ID {AttendanceID} timekeeping is not found to update.", attendanceId);
-                return NotFound(new { message = $"The record not found with ID {attendanceId}." });
-            }
-
-
-            try
-            {
-                bool success = await _attendanceDAL.UpdateAttendanceAsync(attendanceId, attendanceDto);
-                _logger.LogInformation("Success update the ID Timekeeping: {AttendanceID}", attendanceId);
-                return NoContent();
-                
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unwanted Error in Action Updateattantance for ID {AttendanceId}: {@AttendanceDto}", attendanceId, attendanceDto);
-                return StatusCode(StatusCodes.Status500InternalServerError, "Error has occurred the server when updating timekeeping.*");
-            }
-        }
-
 
     }
 }

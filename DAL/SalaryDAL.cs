@@ -6,6 +6,9 @@ using Microsoft.Data.SqlClient.DataClassification;
 using System.Data;
 using Integration_System.Dtos.SalaryDTO;
 using System.Configuration;
+using System.Collections.Generic;
+using Integration_System.Dtos.ReportDto;
+using System.Text;
 namespace Integration_System.DAL
 {
     public class SalaryDAL
@@ -14,8 +17,9 @@ namespace Integration_System.DAL
         private readonly ILogger<SalaryDAL> _logger;
         public SalaryDAL(IConfiguration configuration, ILogger<SalaryDAL> logger)
         {
-            _logger = logger;
-            _mySQlConnectionString = configuration.GetConnectionString("MySqlConnection");
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _mySQlConnectionString = configuration?.GetConnectionString("MySqlConnection")
+                                     ?? throw new ArgumentNullException(nameof(configuration), "MySqlConnection string is null.");
         }
 
         public SalaryModel MapReaderMySQlToSalaryModel(MySqlDataReader reader)
@@ -36,17 +40,20 @@ namespace Integration_System.DAL
         {
             List<SalaryModel> salaries = new List<SalaryModel>();
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-            MySqlDataReader readerMySQL = null;
+            MySqlDataReader? readerMySQL = null;
             try
             {
                 await connectionMySQL.OpenAsync();
                 string query = "SELECT SalaryID, EmployeeID, SalaryMonth, BaseSalary, Bonus, Deductions, NetSalary FROM salaries";
                 MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-                readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync();
-                while (await readerMySQL.ReadAsync())
+                readerMySQL = await command.ExecuteReaderAsync() as MySqlDataReader;
+                if (readerMySQL != null)
                 {
-                    SalaryModel salary = MapReaderMySQlToSalaryModel(readerMySQL);
-                    salaries.Add(salary);
+                    while (await readerMySQL.ReadAsync())
+                    {
+                        SalaryModel salary = MapReaderMySQlToSalaryModel(readerMySQL);
+                        salaries.Add(salary);
+                    }
                 }
 
                 _logger.LogInformation("Successfully retrieved all salaries.");
@@ -105,11 +112,11 @@ namespace Integration_System.DAL
                 await connectionMySQL.CloseAsync();
             }
         }
-        public async Task<SalaryModel> getHistorySalary(int employeeID, int month)
+        public async Task<SalaryModel?> getHistorySalary(int employeeID, int month)
         {
             using var connectionMySQl = new MySqlConnection(_mySQlConnectionString);
-            MySqlDataReader readerMySQL = null;
-            SalaryModel salary = new SalaryModel();
+            MySqlDataReader? readerMySQL = null;
+            SalaryModel? salary = null;
             try
             {
                 await connectionMySQl.OpenAsync();
@@ -117,15 +124,14 @@ namespace Integration_System.DAL
                 MySqlCommand command = new MySqlCommand(query, connectionMySQl);
                 command.Parameters.AddWithValue("@EmployeeID", employeeID);
                 command.Parameters.AddWithValue("@SalaryMonth", month);
-                readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync();
-                if (await readerMySQL.ReadAsync())
+                readerMySQL = await command.ExecuteReaderAsync() as MySqlDataReader;
+                if (readerMySQL != null && await readerMySQL.ReadAsync())
                 {
                     salary = MapReaderMySQlToSalaryModel(readerMySQL);
                 }
                 else
                 {
-                    _logger.LogWarning("not found historical salary of employee.");
-                    return null; // No salary found with the given ID
+                    _logger.LogWarning("Not found historical salary of employee.");
                 }
                 _logger.LogInformation("Successfully retrieved historical salary of employee.");
                 return salary;
@@ -144,51 +150,151 @@ namespace Integration_System.DAL
                 await connectionMySQl.CloseAsync();
             }
         }
-        //public async Task<bool> DeleteSalary(int SalaryID)
-        //{
-        //    using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-        //    MySqlDataReader readerMySQL = null;
-        //    try
-        //    {
-        //        await connectionMySQL.OpenAsync();
-        //        string query = @"DELETE FROM salaries WHERE SalaryID = @SalaryID ";
-        //        MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-        //        command.Parameters.AddWithValue("@SalaryID", SalaryID);
-        //        int rowsAffected = await command.ExecuteNonQueryAsync();
-        //        if (rowsAffected > 0)
-        //        {
-        //            string checkEmpty = "SELECT COUNT(*) FROM salaries";
-        //            MySqlCommand commandCount = new MySqlCommand(checkEmpty, connectionMySQL);
-        //            long count = (long)await commandCount.ExecuteScalarAsync();
-        //            if (count == 0)
-        //            {
-        //                string resetQuery = "ALTER TABLE salaries AUTO_INCREMENT = 1;";
-        //                using var resetCommand = new MySqlCommand(resetQuery, connectionMySQL);
-        //                await resetCommand.ExecuteNonQueryAsync();
-        //            }
-        //            _logger.LogInformation($"Successfully deleted salary with ID {SalaryID}.");
-        //            return true;
 
-        //        }
-        //        else
-        //        {
-        //            _logger.LogWarning($"No salary found with ID {SalaryID}.");
-        //            return false;
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error deleting salary");
-        //        return false;
-        //    }
-        //    finally
-        //    {
-        //        if (readerMySQL != null)
-        //        {
-        //            await readerMySQL.CloseAsync();
-        //        }
-        //        await connectionMySQL.CloseAsync();
-        //    }
-        //}
+        // method of report
+        public async Task<TotalBudgetDto> GetTotalSalaryBudgetAsync(int? month)
+        {
+            decimal totalBudget = 0;
+            using var connection = new MySqlConnection(_mySQlConnectionString);
+            StringBuilder queryBuilder = new StringBuilder("SELECT SUM(NetSalary) FROM salaries");
+            List<string> conditions = new List<string>();
+            MySqlCommand command = new MySqlCommand();
+            if (month.HasValue)
+            {
+                conditions.Add("MONTH(SalaryMonth) = @Month");
+                command.Parameters.AddWithValue("@Month", month.Value);
+            }
+
+            if (conditions.Count > 0)
+            {
+                queryBuilder.Append(" WHERE ").Append(string.Join(" AND ", conditions));
+            }
+            command.CommandText = queryBuilder.ToString();
+            command.Connection = connection;
+
+            try
+            {
+                await connection.OpenAsync();
+                object? result = await command.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value)
+                {
+                    totalBudget = Convert.ToDecimal(result);
+                }
+                _logger.LogInformation("Calculated total salary budget for {Month}: {TotalBudget}", month?.ToString() ?? "All", totalBudget);
+                return new TotalBudgetDto { TotalNetSalary = totalBudget, Month = month };
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calculating total salary budget for {Month}", month?.ToString() ?? "All");
+                throw;
+            }
+            finally
+            {
+                if (connection.State == ConnectionState.Open) await connection.CloseAsync();
+            }
+        }
+
+        public async Task<List<AvgSalaryByDeptDto>> GetAverageSalaryByDeptAsync(int? month)
+        {
+            var avgSalaries = new List<AvgSalaryByDeptDto>();
+            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
+            using var connectionSQLServer = new SqlConnection(_mySQlConnectionString);
+
+            Dictionary<int, decimal> avgSalaryData = new Dictionary<int, decimal>();
+            StringBuilder queryMySQLBuilder = new StringBuilder(@"
+                    SELECT e.department_id, AVG(s.NetSalary) as AverageSalary
+                    FROM salaries s
+                    JOIN employees e ON s.EmployeeID = e.employee_id ");
+
+            List<string> conditions = new List<string>();
+            MySqlCommand commandMySQL = new MySqlCommand();
+            if (month.HasValue) { conditions.Add("MONTH(s.SalaryMonth) = @Month"); commandMySQL.Parameters.AddWithValue("@Month", month.Value); }
+            if (conditions.Count > 0) { queryMySQLBuilder.Append(" WHERE ").Append(string.Join(" AND ", conditions)); }
+            queryMySQLBuilder.Append(" GROUP BY e.department_id");
+            commandMySQL.CommandText = queryMySQLBuilder.ToString();
+            commandMySQL.Connection = connectionMySQL;
+
+            try
+            {
+                await connectionMySQL.OpenAsync();
+                MySqlDataReader readerMySQL = (MySqlDataReader)await commandMySQL.ExecuteReaderAsync();
+                while (await readerMySQL.ReadAsync())
+                {
+                    int deptId = readerMySQL.IsDBNull(readerMySQL.GetOrdinal("department_id")) ? 0 : readerMySQL.GetInt32(readerMySQL.GetOrdinal("department_id"));
+                    decimal avgSalary = readerMySQL.IsDBNull(readerMySQL.GetOrdinal("AverageSalary")) ? 0 : readerMySQL.GetDecimal(readerMySQL.GetOrdinal("AverageSalary"));
+                    if (deptId > 0)
+                    {
+                        avgSalaryData[deptId] = avgSalary;
+                    }
+                }
+                await readerMySQL.CloseAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting average salary data from MySQL for {Month}", month?.ToString() ?? "All");
+                throw;
+            }
+            finally
+            {
+                if (connectionMySQL.State == ConnectionState.Open) await connectionMySQL.CloseAsync();
+            }
+
+            if (!avgSalaryData.Any())
+            {
+                _logger.LogInformation("No average salary data found for {Month}.", month?.ToString() ?? "All");
+                return avgSalaries;
+            }
+
+            Dictionary<int, string> departmentNames = new Dictionary<int, string>();
+            StringBuilder querySQLServerBuilder = new StringBuilder("SELECT DepartmentID, DepartmentName FROM Departments WHERE DepartmentID IN (");
+            List<SqlParameter> sqlParams = new List<SqlParameter>();
+            int i = 0;
+            foreach (var deptId in avgSalaryData.Keys)
+            {
+                string paramName = $"@DeptID{i}";
+                querySQLServerBuilder.Append(paramName).Append(",");
+                sqlParams.Add(new SqlParameter(paramName, deptId));
+                i++;
+            }
+            querySQLServerBuilder.Length--;
+            querySQLServerBuilder.Append(")");
+
+            SqlCommand commandSQLServer = new SqlCommand(querySQLServerBuilder.ToString(), connectionSQLServer);
+            commandSQLServer.Parameters.AddRange(sqlParams.ToArray());
+
+            try
+            {
+                await connectionSQLServer.OpenAsync();
+                SqlDataReader readerSQLServer = await commandSQLServer.ExecuteReaderAsync();
+                while (await readerSQLServer.ReadAsync())
+                {
+                    departmentNames[readerSQLServer.GetInt32(0)] = readerSQLServer.GetString(1);
+                }
+                await readerSQLServer.CloseAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching department names from SQL Server.");
+            }
+            finally
+            {
+                if (connectionSQLServer.State == ConnectionState.Open) await connectionSQLServer.CloseAsync();
+            }
+
+            foreach (var kvp in avgSalaryData)
+            {
+                avgSalaries.Add(new AvgSalaryByDeptDto
+                {
+                    DepartmentId = kvp.Key,
+                    DepartmentName = departmentNames.GetValueOrDefault(kvp.Key, $"Unknown Dept ({kvp.Key})"),
+                    AverageNetSalary = kvp.Value,
+                    Month = month
+                });
+            }
+
+            _logger.LogInformation("No average salary data found for {Month}.", month?.ToString() ?? "All");
+            return avgSalaries.OrderBy(s => s.DepartmentName).ToList();
+        }
     }
 }

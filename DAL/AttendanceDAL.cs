@@ -102,42 +102,6 @@ namespace Integration_System.DAL
             }
             return attendance;
         }   
-
-        public async Task<bool> UpdateAttendanceAsync(int attendanceId, UpdateAttendanceDto attendanceDto)
-        {
-            using var connection = new MySqlConnection(_mysqlConnectionString);
-            try
-            {
-                await connection.OpenAsync();
-                string query = @"UPDATE attendance
-                                     SET WorkDays = @WorkDays,
-                                         AbsentDays = @AbsentDays,
-                                         LeaveDays = @LeaveDays
-                                     WHERE AttendanceID = @AttendanceID";
-                using var command = new MySqlCommand(query, connection);
-                command.Parameters.AddWithValue("@WorkDays", attendanceDto.NumberOfWorkingDays);
-                command.Parameters.AddWithValue("@AbsentDays", attendanceDto.NumberOfAbsentDays);
-                command.Parameters.AddWithValue("@LeaveDays", attendanceDto.NumberOfLeaveDays);
-                command.Parameters.AddWithValue("@AttendanceID", attendanceId);
-
-                int rowsAffected = await command.ExecuteNonQueryAsync();
-                if (rowsAffected > 0)
-                {
-                    _logger.LogInformation("Success update the ID Timekeeping: {AttendanceID}.", attendanceId);
-                    return true;
-                }
-                else
-                {
-                    _logger.LogWarning("The ID Time Timekeeper is not found: {AttendanceID} to update.", attendanceId);
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error when updating the ID Timekeeping: {AttendanceID}.", attendanceId);
-                return false;
-            }
-        }
         private AttendanceModel MapReaderToAttendanceModel(MySqlDataReader reader)
         {
             int attendanceMonthValue = 0;
