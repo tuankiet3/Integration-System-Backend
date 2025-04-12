@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Integration_System.Dtos.NotificationDTO;
+using Integration_System.Middleware;
+using Integration_System.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
@@ -11,9 +14,13 @@ namespace Integration_System.Controllers
     {
         private readonly ILogger<NotificationsController> _logger;
 
-        public NotificationsController(ILogger<NotificationsController> logger)
+        private readonly NotificationSalaryMDW _notificationSalary;
+        private readonly NotificationSalaryService _notificationSalaryService;
+        public NotificationsController(ILogger<NotificationsController> logger, NotificationSalaryMDW notificationSalary, NotificationSalaryService notificationSalaryService)
         {
             _logger = logger;
+            _notificationSalary = notificationSalary;
+            _notificationSalaryService = notificationSalaryService;
         }
 
         // POST: api/notifications/trigger/anniversary
@@ -81,6 +88,23 @@ namespace Integration_System.Controllers
             {
                 _logger.LogError(ex, "Error triggering payroll email notifications for {Year}-{Month}.", year, month);
                 return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Internal Server Error", Detail = $"Error triggering payroll email notifications for {year}-{month}.", Status = StatusCodes.Status500InternalServerError });
+            }
+        }
+        // GET all salary notifications
+        [HttpGet("notifications")]
+        [ProducesResponseType(typeof(List<NotificationSalaryDTO>), statusCode: 200)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetSalaryNotifications()
+        {
+            try
+            {
+                var notifications = await _notificationSalaryService.GetAllNotificationsAsync();
+                return Ok(notifications);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving salary notifications from Redis");
+                return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
             }
         }
     }
