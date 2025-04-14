@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using Integration_System.Dtos;
 using Integration_System.Dtos.EmployeeDTO;
+using Integration_System.Middleware;
+
 namespace Integration_System.Controllers
 {
     [Route("api/employees")] // Route to access the API
@@ -12,11 +14,13 @@ namespace Integration_System.Controllers
     {
         private readonly EmployeeDAL _employeeDAL;
         private readonly ILogger<EmployeeControllers> _logger;
+        private readonly NotificationSalaryMDW _notificationSalaryMDW;
 
-        public EmployeeControllers(EmployeeDAL employeeDAL, ILogger<EmployeeControllers> logger)
+        public EmployeeControllers(EmployeeDAL employeeDAL, ILogger<EmployeeControllers> logger, NotificationSalaryMDW notificationSalaryMDW)
         {
             _employeeDAL = employeeDAL;
             _logger = logger;
+            _notificationSalaryMDW = notificationSalaryMDW;
         }
 
 
@@ -132,11 +136,14 @@ namespace Integration_System.Controllers
             try
             {
                 bool deletedEmployee = await _employeeDAL.DeleteEmployeeAsync(EmployeeId);
+
                 if (!deletedEmployee)
                 {
                     _logger.LogWarning($"Failed to delete employee with ID {EmployeeId}");
                     return NotFound();
                 }
+                // Notify the Redis service about the deletion
+                await _notificationSalaryMDW.CheckAndNotificationLeave(true, EmployeeId);
                 _logger.LogInformation($"Employee with ID {EmployeeId} deleted successfully");
                 return Ok(new {Message ="Employee Deleted successfully"});
             }

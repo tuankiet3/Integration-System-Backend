@@ -1,48 +1,57 @@
-﻿using Integration_System.DAL;
-using Integration_System.Middleware;
-using Integration_System.Model;
-using Integration_System.Services;
+﻿    using Integration_System.DAL;
+    using Integration_System.Middleware;
+    using Integration_System.Model;
+    using Integration_System.Services;
+    using Microsoft.Extensions.Options; // Thêm using này
+    using StackExchange.Redis;
 
-using StackExchange.Redis;
+    var builder = WebApplication.CreateBuilder(args);
 
-var builder = WebApplication.CreateBuilder(args);
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
 
-// Add services to the container.
+    // Đăng ký DALs
+    builder.Services.AddScoped<EmployeeDAL>();
+    builder.Services.AddScoped<SalaryDAL>();
+    builder.Services.AddScoped<PositionDAL>();
+    builder.Services.AddScoped<DepartmentDAL>();
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<EmployeeDAL>();
-builder.Services.AddScoped<SalaryDAL>();
-builder.Services.AddScoped<PositionDAL>();
-builder.Services.AddScoped<DepartmentDAL>();
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowSpecificOrigin",
-        policy =>
-        {
-            policy.WithOrigins("http://localhost:5173") // Cho phép React truy cập
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-});
-builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect("localhost:6379")); // hoặc redis:6379 nếu dùng Docker
-builder.Services.AddSingleton<NotificationSalaryService>();
-builder.Services.AddScoped<NotificationSalaryMDW>();
-var app = builder.Build();
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    // Đăng ký CORS
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AllowSpecificOrigin",
+            policy =>
+            {
+                policy.WithOrigins("http://localhost:5173")
+                      .AllowAnyHeader()
+                      .AllowAnyMethod();
+            });
+    });
 
-app.UseHttpsRedirection();
+    // Đăng ký Redis và Notification Service
+    builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect("localhost:6379"));
+    builder.Services.AddSingleton<NotificationSalaryService>();
 
-app.UseAuthorization();
+    // Đăng ký Middleware
+    builder.Services.AddScoped<NotificationSalaryMDW>();
 
-app.MapControllers();
-app.UseCors("AllowSpecificOrigin");
+    
+    // Đăng ký Email Service
 
-app.Run();
+    var app = builder.Build();
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+    app.UseHttpsRedirection();
+
+    app.UseAuthorization();
+
+    app.MapControllers();
+    app.UseCors("AllowSpecificOrigin");
+
+    app.Run();

@@ -15,12 +15,55 @@ namespace Integration_System.Middleware
         private readonly SalaryDAL _salaryDAL;
         private readonly ILogger<NotificationSalaryMDW> _logger;
         private readonly NotificationSalaryService _redisService;
-        public NotificationSalaryMDW(SalaryDAL salaryDAL, ILogger<NotificationSalaryMDW> logger, NotificationSalaryService redisService)
+        private readonly EmployeeDAL _employeeDAL;
+        public NotificationSalaryMDW(SalaryDAL salaryDAL, ILogger<NotificationSalaryMDW> logger, NotificationSalaryService redisService, EmployeeDAL employeeDAL)
         {
             _salaryDAL = salaryDAL;
             _logger = logger;
             _redisService = redisService;
+            _employeeDAL = employeeDAL;
         }
+
+        public async Task<bool> CheckAndNotificationAnniversary()
+        {
+            List<EmployeeModel> listEmployees = await _employeeDAL.GetAllEmployeesAsync();
+            foreach (var employee in listEmployees)
+            {
+                if ((DateTime.UtcNow - employee.HireDate).TotalDays >= 365 && (DateTime.UtcNow - employee.HireDate).TotalDays < 366)
+                {
+                    string message = $"Today is the anniversary of employee {employee.EmployeeId}";
+                    await _redisService.AddNotificationAsync(new NotificationSalaryDTO
+                    {
+                        EmployeeId = employee.EmployeeId,
+                        Message = message,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+            if (listEmployees.Count == 0)
+            {
+                _logger.LogWarning("No employees found for anniversary notification");
+                return false;
+            }
+            return true;
+        }
+
+        public async Task<bool> CheckAndNotificationLeave(bool check, int EmployeeId)
+        {
+            if (check)
+            {
+                string message = $"Employee with {EmployeeId} has deleted";
+                await _redisService.AddNotificationAsync(new NotificationSalaryDTO
+                {
+                    EmployeeId = EmployeeId,
+                    Message = message,
+                    CreatedAt = DateTime.UtcNow
+                });
+                return true;
+            }
+            return false;
+        }
+
         public async Task<bool> CheckAndNotifySalary(SalaryInsertDTO salary)
         {
             SalaryModel salaryModel = await _salaryDAL.getLatestEmployeeID(salary.EmployeeId);

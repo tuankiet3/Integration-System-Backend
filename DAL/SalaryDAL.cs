@@ -355,5 +355,10 @@ namespace Integration_System.DAL
                 await mySqlConnection.CloseAsync();
             }
         }
+
+        internal async Task<IEnumerable<object>> GetSalariesAsync(object value, int month)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
