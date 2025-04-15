@@ -7,6 +7,7 @@ using Integration_System.Dtos.EmployeeDTO;
 using MySqlX.XDevAPI.Common;
 using System.Collections.Generic;
 using Integration_System.Dtos.ReportDto;
+using static Integration_System.ENUM;
 namespace Integration_System.DAL
 {
     public class EmployeeDAL
@@ -60,6 +61,7 @@ namespace Integration_System.DAL
                 UpdatedAt = reader.GetDateTime("UpdatedAt")
             };
         }
+       
         public EmployeeGetDTO MapReaderSQLServerToGetEmployeeModel(SqlDataReader reader)
         {
             return new EmployeeGetDTO
@@ -112,69 +114,108 @@ namespace Integration_System.DAL
             }
             return employees;
         }
+        public async Task<InsertEmployeeResult> checkInsert(EmployeeInsertDTO employeeDTO)
+        {
+            // check  Email
+            using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
+            await connectionSQLServer.OpenAsync();
+            string checkEmailQuery = @"SELECT COUNT(*) FROM Employees WHERE Email = @Email";
+            SqlCommand checkEmailCommand = new SqlCommand(checkEmailQuery, connectionSQLServer);
+            checkEmailCommand.Parameters.AddWithValue("@Email", employeeDTO.Email);
+            var emailCount = (int)await checkEmailCommand.ExecuteScalarAsync();
+            if (emailCount > 0)
+                return InsertEmployeeResult.EmailAlreadyExists;
+
+            string checkDepartmentQuery = @"SELECT COUNT(*) FROM Departments WHERE DepartmentID = @DepartmentId";
+            SqlCommand checkDepartmentCommand = new SqlCommand(checkDepartmentQuery, connectionSQLServer);
+            checkDepartmentCommand.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+            var deptCount = (int)await checkDepartmentCommand.ExecuteScalarAsync();
+            if (deptCount == 0)
+                return InsertEmployeeResult.InvalidDepartment;
+
+            string checkPositionQuery = @"SELECT COUNT(*) FROM Positions WHERE PositionID = @PositionID";
+            SqlCommand checkPositionCommand = new SqlCommand(checkPositionQuery, connectionSQLServer);
+            checkPositionCommand.Parameters.AddWithValue("@PositionID", employeeDTO.PositionId);
+            var postCount = (int)await checkPositionCommand.ExecuteScalarAsync();
+            if (postCount == 0)
+                return InsertEmployeeResult.InvalidPosition;
+
+            return InsertEmployeeResult.Success;
+        }
 
         public async Task<bool> InsertEmployeeAsync(EmployeeInsertDTO employeeDTO)
         {
-            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-            using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
-            try
-            {
+        using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
+        using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
 
-                // Insert into SQL Server
-                await connectionSQLServer.OpenAsync();
-                Console.WriteLine("✅ Kết nối SQl Server thành công!");
-                string querySQLServer = @"INSERT INTO Employees (FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentID, PositionID, Status, CreatedAt, UpdatedAt) VALUES (@FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt)";
-                SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
-                commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
-                commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
-                commandSQLServer.Parameters.AddWithValue("@Gender", employeeDTO.Gender);
-                commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employeeDTO.PhoneNumber);
-                commandSQLServer.Parameters.AddWithValue("@Email", employeeDTO.Email);
-                commandSQLServer.Parameters.AddWithValue("@HireDate", employeeDTO.HireDate);
-                commandSQLServer.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
-                commandSQLServer.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
-                commandSQLServer.Parameters.AddWithValue("@Status", employeeDTO.Status);
-                commandSQLServer.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
-                commandSQLServer.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
+        try
+        {
+        // Insert into SQL Server
+        await connectionSQLServer.OpenAsync();
+        Console.WriteLine("✅ Kết nối SQL Server thành công!");
 
-                // Insert into MySQL
-                await connectionMySQL.OpenAsync();
-                Console.WriteLine("✅ Kết nối MySQL thành công!");
-                string queryMySQL = @"INSERT INTO employees (EmployeeID, FullName, DepartmentID, PositionID, Status) VALUES (@EmployeeID, @FullName, @DepartmentId, @PositionId, @Status)";
-                MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
-                int maxID = await maxEmployeeID() + 1;
-                commandMySQL.Parameters.AddWithValue("@EmployeeID",maxID);
-                commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
-                commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
-                commandMySQL.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
-                commandMySQL.Parameters.AddWithValue("@Status", employeeDTO.Status);
+        string querySQLServer = @"
+            INSERT INTO Employees 
+            (FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentID, PositionID, Status, CreatedAt, UpdatedAt)
+            VALUES 
+            (@FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt);
+            SELECT SCOPE_IDENTITY();";
 
-                int rowsAffectedSQLServer = await commandSQLServer.ExecuteNonQueryAsync();
-                int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
-                // Check if the insert was successful in both databases
-                if (rowsAffectedMySQL > 0 && rowsAffectedSQLServer > 0)
-                {
-                    _logger.LogInformation("Successfully inserted employee into.");
-                    return true;
-                }
-                else
-                {
-                    _logger.LogWarning("Failed to insert employee.");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error while inserting employee into MySQL database or SQL Server database");
-                return false;
-            }
-            finally
-            {
-                await connectionSQLServer.CloseAsync();
-                await connectionMySQL.CloseAsync();
+        SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
+        commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+        commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
+        commandSQLServer.Parameters.AddWithValue("@Gender", employeeDTO.Gender);
+        commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employeeDTO.PhoneNumber);
+        commandSQLServer.Parameters.AddWithValue("@Email", employeeDTO.Email);
+        commandSQLServer.Parameters.AddWithValue("@HireDate", employeeDTO.HireDate);
+        commandSQLServer.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+        commandSQLServer.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+        commandSQLServer.Parameters.AddWithValue("@Status", employeeDTO.Status);
+        commandSQLServer.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+        commandSQLServer.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
 
-            }
+        object? insertedIdObj = await commandSQLServer.ExecuteScalarAsync();
+        int newEmployeeID = Convert.ToInt32(insertedIdObj);
+        Console.WriteLine($"✅ Insert vào SQL Server thành công, ID mới: {newEmployeeID}");
+
+        // Insert into MySQL
+        await connectionMySQL.OpenAsync();
+        Console.WriteLine("✅ Kết nối MySQL thành công!");
+
+        string queryMySQL = @"INSERT INTO employees (EmployeeID, FullName, DepartmentID, PositionID, Status) 
+                              VALUES (@EmployeeID, @FullName, @DepartmentId, @PositionId, @Status)";
+        MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
+        commandMySQL.Parameters.AddWithValue("@EmployeeID", newEmployeeID);
+        commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+        commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+        commandMySQL.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+        commandMySQL.Parameters.AddWithValue("@Status", employeeDTO.Status);
+
+        int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
+
+        if (rowsAffectedMySQL > 0)
+        {
+            _logger.LogInformation("✅ Insert thành công vào cả hai hệ thống.");
+            return true;
         }
+        else
+        {
+            _logger.LogWarning("❌ Insert vào MySQL thất bại.");
+            return false;
+        }
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "❌ Lỗi khi insert nhân viên vào SQL Server hoặc MySQL.");
+        return false;
+    }
+    finally
+    {
+        await connectionSQLServer.CloseAsync();
+        await connectionMySQL.CloseAsync();
+    }
+}
+
 
         public async Task<bool> DeleteEmployeeAsync(int EmployeeId)
         {
@@ -184,9 +225,14 @@ namespace Integration_System.DAL
             {
                 // Delete from MySQL
                 await connectionMySQL.OpenAsync();
+                string deleteSalariesQuery = "DELETE FROM salaries WHERE EmployeeID = @EmployeeId";
+                MySqlCommand deleteSalariesCommand = new MySqlCommand(deleteSalariesQuery, connectionMySQL);
+                deleteSalariesCommand.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+                int salaryRowsAffected = await deleteSalariesCommand.ExecuteNonQueryAsync();
                 string queryMySQL = @"DELETE FROM employees WHERE EmployeeID = @EmployeeId";
                 MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
                 commandMySQL.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+
                 int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
                 // Delete from SQL Server
                 await connectionSQLServer.OpenAsync();
@@ -312,17 +358,6 @@ namespace Integration_System.DAL
             }
             return employee;
         }
-        public async Task<int> maxEmployeeID()
-        {
-            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-            await connectionMySQL.OpenAsync();
-            string query = "SELECT MAX(EmployeeID) FROM employees;";
-            MySqlCommand command = new MySqlCommand(query, connectionMySQL);
-            object? result = await command.ExecuteScalarAsync(); // Allow nullable object
-            int max = result != null && result != DBNull.Value ? Convert.ToInt32(result) : 0; // Handle null and DBNull
-            return max;
-        }
-
         // method of report
 
         public async Task<List<DistributionByDeptDto>> GetEmployeeDistributionByDeptAsync()

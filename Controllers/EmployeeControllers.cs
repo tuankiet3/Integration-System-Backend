@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using Integration_System.Dtos;
 using Integration_System.Dtos.EmployeeDTO;
 using Integration_System.Middleware;
-
+using static Integration_System.ENUM;
 namespace Integration_System.Controllers
 {
     [Route("api/employees")] // Route to access the API
@@ -79,16 +79,32 @@ namespace Integration_System.Controllers
             }
             try
             {
-                bool createdEmployee = await _employeeDAL.InsertEmployeeAsync(employeeDTO);
-                if (!createdEmployee)
+                var result = await _employeeDAL.checkInsert(employeeDTO);
+                switch (result)
                 {
-                    _logger.LogWarning("Failed to create employee");
-                    return BadRequest("Failed to create employee");
-                }
-                else
-                {
-                    _logger.LogInformation("Employee created successfully");
-                    return Ok(new { Message = "Employee Inserted successfully." });
+                    case InsertEmployeeResult.EmailAlreadyExists:
+                        return BadRequest("❌ Email already exists.");
+                    case InsertEmployeeResult.InvalidDepartment:
+                        return BadRequest("❌ Department ID is invalid.");
+                    case InsertEmployeeResult.InvalidPosition:
+                        return BadRequest("❌ Position ID is invalid.");
+                    case InsertEmployeeResult.Failed:
+                        _logger.LogWarning("Failed to create employee.");
+                        return BadRequest("❌ Failed to create employee.");
+                    case InsertEmployeeResult.Success:
+                        bool createdEmployee = await _employeeDAL.InsertEmployeeAsync(employeeDTO);
+                        if (!createdEmployee)
+                        {
+                            _logger.LogWarning("Failed to create employee");
+                            return BadRequest("Failed to create employee");
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Employee created successfully");
+                            return Ok(new { Message = "Employee Inserted successfully." });
+                        }
+                    default:
+                        return StatusCode(StatusCodes.Status500InternalServerError, "Unknown error");
                 }
             }
             catch (Exception ex)
