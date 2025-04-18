@@ -15,7 +15,7 @@ namespace Integration_System.Services
     {
         private readonly GoogleAuthSettings _authSettings;
         private readonly ILogger<GoogleAuthService> _logger;
-        private UserCredential? _credential; // Cache credential
+        private UserCredential? _credential;
 
         public GoogleAuthService(IOptions<GoogleAuthSettings> authSettings, ILogger<GoogleAuthService> logger)
         {
@@ -24,7 +24,7 @@ namespace Integration_System.Services
 
             if (string.IsNullOrWhiteSpace(_authSettings.ClientSecretPath) ||
                 string.IsNullOrWhiteSpace(_authSettings.TokenStorePath) ||
-                 string.IsNullOrWhiteSpace(_authSettings.SendingUserEmail))
+                string.IsNullOrWhiteSpace(_authSettings.SendingUserEmail))
             {
                 _logger.LogError("GoogleAuthSettings are not configured properly in appsettings.json.");
                 throw new InvalidOperationException("GoogleAuth settings are missing or invalid.");
@@ -39,13 +39,11 @@ namespace Integration_System.Services
             return _authSettings.SendingUserEmail;
         }
 
-
         public async Task<UserCredential> GetUserCredentialAsync(CancellationToken cancellationToken = default)
         {
-            // Kiểm tra cache credential và làm mới nếu cần (Giữ nguyên logic này)
-            if (_credential != null && (!_credential.Token.IsExpired(_credential.Flow.Clock) || _credential.Token.RefreshToken != null))
+            if (_credential != null && (!_credential.Token.IsStale || _credential.Token.RefreshToken != null))
             {
-                if (_credential.Token.IsExpired(_credential.Flow.Clock) && _credential.Token.RefreshToken != null)
+                if (_credential.Token.IsStale && _credential.Token.RefreshToken != null)
                 {
                     _logger.LogInformation("Access token expired, attempting refresh...");
                     if (await _credential.RefreshTokenAsync(cancellationToken))
@@ -55,23 +53,18 @@ namespace Integration_System.Services
                     else
                     {
                         _logger.LogWarning("Failed to refresh access token. Re-authorization might be required.");
-                        // Có thể cân nhắc xóa _credential ở đây để buộc xác thực lại hoàn toàn
-                        // _credential = null;
                     }
                 }
-                // Chỉ trả về credential nếu nó vẫn hợp lệ sau khi thử refresh (nếu có)
-                if (_credential != null && (!_credential.Token.IsExpired(_credential.Flow.Clock) || _credential.Token.RefreshToken != null))
+                if (_credential != null && (!_credential.Token.IsStale || _credential.Token.RefreshToken != null))
                 {
                     return _credential;
                 }
                 else
                 {
-                    // Nếu refresh thất bại và token vẫn hết hạn, xóa credential để lấy lại từ đầu
                     _logger.LogWarning("Token could not be refreshed and is expired. Clearing cached credential.");
                     _credential = null;
                 }
             }
-
 
             _logger.LogInformation("Attempting to load client secret from: {path}", _authSettings.ClientSecretPath);
             GoogleClientSecrets clientSecrets;
@@ -89,27 +82,21 @@ namespace Integration_System.Services
                 throw;
             }
 
-            // ---- PHẦN CHỈNH SỬA ĐỂ XỬ LÝ ĐƯỜNG DẪN ----
             string configuredPath = _authSettings.TokenStorePath;
-            string finalTokenFolderPath; // Thư mục cuối cùng để lưu token
+            string finalTokenFolderPath;
 
             if (Path.IsPathRooted(configuredPath))
             {
-                // Nếu đường dẫn đã là tuyệt đối, sử dụng trực tiếp
                 finalTokenFolderPath = configuredPath;
                 _logger.LogInformation("Using absolute TokenStorePath: {path}", finalTokenFolderPath);
             }
             else
             {
-                // Nếu là tương đối, kết hợp với thư mục chạy ứng dụng
                 finalTokenFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configuredPath);
                 _logger.LogInformation("Using relative TokenStorePath, combined path: {path}", finalTokenFolderPath);
             }
             _logger.LogInformation("Final token store folder path: {credPath}", finalTokenFolderPath);
-            // ---- KẾT THÚC PHẦN CHỈNH SỬA ĐƯỜNG DẪN ----
 
-
-            // FileDataStore mong đợi đường dẫn đến THƯ MỤC
             var dataStore = new FileDataStore(finalTokenFolderPath, true);
 
             try
@@ -117,12 +104,10 @@ namespace Integration_System.Services
                 _logger.LogInformation("Authorizing user: {user}", _authSettings.SendingUserEmail);
                 _credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
                     clientSecrets.Secrets,
-                    // ---- SỬA DÒNG NÀY ĐỂ ĐÚNG SCOPE ----
                     new[] { "https://mail.google.com/" },
-                    // ---- KẾT THÚC SỬA ----
                     _authSettings.SendingUserEmail,
                     cancellationToken,
-                    dataStore); // Sử dụng dataStore đã được tạo với đường dẫn đúng
+                    dataStore);
                 _logger.LogInformation("Authorization successful for user: {user}", _authSettings.SendingUserEmail);
             }
             catch (Exception ex)

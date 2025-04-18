@@ -6,7 +6,8 @@ using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Logging;
 using Google.Apis.Auth.OAuth2;
-using MailKit; // Cần thiết
+using MailKit;
+using Org.BouncyCastle.Tls; 
 
 namespace Integration_System.Services
 {
@@ -52,10 +53,10 @@ namespace Integration_System.Services
                 }
 
 
-                string senderEmail = _googleAuthService.GetSendingUserEmail(); // Lấy email người gửi từ service auth
+                string senderEmail = _googleAuthService.GetSendingUserEmail();
 
                 var message = new MimeMessage();
-                message.From.Add(new MailboxAddress(senderEmail, senderEmail)); // Tên có thể tùy chỉnh
+                message.From.Add(new MailboxAddress(senderEmail, senderEmail)); 
                 message.To.Add(new MailboxAddress(toEmail, toEmail));
                 message.Subject = subject;
 
@@ -68,7 +69,7 @@ namespace Integration_System.Services
                     await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls, cancellationToken);
                     _logger.LogInformation("Connected. Authenticating...");
 
-                    // Xác thực bằng OAuth 2.0 (XOAUTH2)
+                    
                     var oauth2 = new SaslMechanismOAuth2(senderEmail, accessToken);
                     await client.AuthenticateAsync(oauth2, cancellationToken);
 
