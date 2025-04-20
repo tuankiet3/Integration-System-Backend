@@ -104,6 +104,7 @@ namespace Integration_System.Controllers
                     case "avg_salary_by_dept":
                         reportData = await _salaryDAL.GetAverageSalaryByDeptAsync(month);
                         _logger.LogInformation("Generated avg_salary_by_dept report.");
+                        Console.WriteLine(reportData);
                         break;
 
                     default:

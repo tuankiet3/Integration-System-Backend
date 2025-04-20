@@ -125,7 +125,7 @@ namespace Integration_System.Controllers
                     new Claim(ClaimTypes.NameIdentifier, user.Id), // UserId
                     new Claim(ClaimTypes.Name, user.UserName ?? string.Empty), // UserName
                     new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""), // Email
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique ID cho token
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique ID of token
                 };
 
                 foreach (var userRole in userRoles)
