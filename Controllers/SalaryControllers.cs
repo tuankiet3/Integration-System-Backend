@@ -9,6 +9,9 @@ using Integration_System.Dtos;
 using Integration_System.Dtos.SalaryDTO;
 using Integration_System.Middleware;
 using Integration_System.Dtos.NotificationDTO;
+using Integration_System.Constants;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 namespace Integration_System.Controllers
 {
     [Route("api/salaries")] // Route to access the API
@@ -19,7 +22,7 @@ namespace Integration_System.Controllers
         private readonly ILogger<SalaryControllers> _logger;
         private readonly NotificationSalaryMDW _notificationSalary;
         private readonly NotificationSalaryService _notificationSalaryService;
-        // Constructor to initialize dependencies
+
         public SalaryControllers(SalaryDAL salaryDAL, ILogger<SalaryControllers> logger, NotificationSalaryMDW notificationSalary, NotificationSalaryService notificationSalaryService)
         {
             _salaryDAL = salaryDAL;
@@ -27,108 +30,103 @@ namespace Integration_System.Controllers
             _notificationSalary = notificationSalary;
             _notificationSalaryService = notificationSalaryService;
         }
-        // GET all salaries
-        [HttpGet] // api/salaries
+
+        [HttpGet]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(IEnumerable<SalaryModel>), statusCode: 200)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllSalaries()
         {
             try
             {
                 List<SalaryModel> salaries = await _salaryDAL.getSalaries();
-                _logger.LogInformation("Retrieved all salaries successfully");
-                return Ok(salaries);
+                _logger.LogInformation("User {User} retrieved all salaries successfully", User.Identity?.Name);
+                return Ok(salaries ?? Enumerable.Empty<SalaryModel>());
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving salaries");
-                return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
+                _logger.LogError(ex, "Error retrieving all salaries");
+                return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Server Error", Detail = "Internal server error retrieving salaries." });
             }
         }
-        // GET salary by employee ID and month
-        [HttpGet("/history/{employeeID}/{month}")] // api/salaries/history/{id}/{id}
+
+        [HttpGet("employee/{employeeID}/history/{month}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement},{UserRoles.Employee}")]
         [ProducesResponseType(typeof(SalaryModel), statusCode: 200)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetHistorySalary(int employeeID, int month)
         {
+            var currentUserIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            bool isAdminOrPayroll = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.PayrollManagement);
+
+            if (!isAdminOrPayroll)
+            {
+                _logger.LogWarning("Potential Forbidden Access: User {UserId} (Role: Employee) requested salary history for employee {TargetEmployeeId}. Access allowed for now, requires ID check implementation.", currentUserIdClaim, employeeID);
+            }
+
             try
             {
                 SalaryModel? salary = await _salaryDAL.getHistorySalary(employeeID, month);
                 if (salary == null)
                 {
-                    _logger.LogWarning($"Salary for employee {employeeID} in month {month} not found");
-                    return NotFound();
+                    _logger.LogWarning($"Salary history for employee {employeeID} in month {month} not found.");
+                    return NotFound(new ProblemDetails { Title = "Not Found", Detail = $"Salary history not found for employee {employeeID}, month {month}." });
                 }
-                _logger.LogInformation($"Retrieved salary for employee {employeeID} in month {month} successfully");
+                _logger.LogInformation($"User {User.Identity?.Name} retrieved salary history for employee {employeeID} in month {month} successfully.");
                 return Ok(salary);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving salary by ID");
-                return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
+                _logger.LogError(ex, "Error retrieving salary history for employee {EmployeeId}, month {Month}", employeeID, month);
+                return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Server Error", Detail = "Internal server error retrieving salary history." });
             }
         }
-        // Insert salary by employee ID
-        [HttpPost] // api/salaries
-        [ProducesResponseType(statusCode: 200)]
+
+        [HttpPost]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement}")]
+        [ProducesResponseType(typeof(object), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> CreateSalary([FromBody] SalaryInsertDTO  salary)
+        public async Task<IActionResult> CreateSalary([FromBody] SalaryInsertDTO salary)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
             if (salary == null)
             {
-                _logger.LogWarning("Salary object is null");
-                return BadRequest("Salary object is null");
+                _logger.LogWarning("CreateSalary attempted with a null DTO by user {User}.", User.Identity?.Name);
+                return BadRequest(new ProblemDetails { Title = "Bad Request", Detail = "Salary data cannot be null." });
             }
             try
             {
                 bool isWarning = await _notificationSalary.CheckAndNotifySalary(salary);
-                Console.WriteLine(isWarning);
-                bool createdSalary = await _salaryDAL.InserSalary(salary);
-                    if(createdSalary == true)
-                    {
-                        _logger.LogInformation($"Created salary successfully for EmployeeId {salary.EmployeeId}");
-                        return Ok(new { Message = "Salary Created Successfully" });
-                    }
-                    else
-                    {
+                if (isWarning)
+                {
+                    _logger.LogInformation("Unusual salary deviation detected and notification sent for EmployeeId {EmployeeId} by user {User}.", salary.EmployeeId, User.Identity?.Name);
+                }
 
-                        _logger.LogWarning("Failed to create salary");
-                        return BadRequest("Error creating salary");
-                    
-                     }
+                bool createdSalary = await _salaryDAL.InserSalary(salary);
+                if (createdSalary)
+                {
+                    _logger.LogInformation($"User {User.Identity?.Name} created salary successfully for EmployeeId {salary.EmployeeId} for month {salary.SalaryMonth:yyyy-MM}.");
+                    return Ok(new { Message = "Salary Created Successfully" });
+                }
+                else
+                {
+                    _logger.LogError("Failed to insert salary into database for EmployeeId {EmployeeId}, month {SalaryMonth}, by user {User}.", salary.EmployeeId, salary.SalaryMonth, User.Identity?.Name);
+                    return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Operation Failed", Detail = "Failed to save salary record." });
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating salary");
-                return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
+                _logger.LogError(ex, "Error creating salary for EmployeeId {EmployeeId} by user {User}", salary.EmployeeId, User.Identity?.Name);
+                return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Server Error", Detail = "An internal error occurred while creating the salary record." });
             }
         }
-        
-        //[HttpDelete("{salaryID}")] // api/salaries/{id}
-        //[ProducesResponseType(statusCode: 200)]
-        //[ProducesResponseType(StatusCodes.Status404NotFound)]
-        //[ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        //public async Task<IActionResult> DeleteSalary(int salaryID)
-        //{
-        //    try
-        //    {
-        //        bool deletedSalary = await _salaryDAL.DeleteSalary(salaryID);
-        //        if (deletedSalary == false)
-        //        {
-        //            _logger.LogWarning($"Salary with ID {salaryID} not found");
-        //            return NotFound();
-        //        }
-        //        _logger.LogInformation($"Deleted salary with ID {salaryID} successfully");
-        //        return Ok(new { Message = "Salary deleted successfully." });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error deleting salary");
-        //        return StatusCode(StatusCodes.Status500InternalServerError, "Internal server error");
-        //    }
-        //}
-
     }
 }

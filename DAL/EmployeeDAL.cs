@@ -7,19 +7,32 @@ using Integration_System.Dtos.EmployeeDTO;
 using MySqlX.XDevAPI.Common;
 using System.Collections.Generic;
 using Integration_System.Dtos.ReportDto;
+using Microsoft.AspNetCore.Identity;
 using static Integration_System.ENUM;
+using Microsoft.AspNetCore.Mvc;
+using Integration_System.Constants;
+using Integration_System.Services;
 namespace Integration_System.DAL
 {
     public class EmployeeDAL
     {
         public readonly string _mySQlConnectionString;
         public readonly string _SQLServerConnectionString;
+        private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ILogger<EmployeeDAL> _logger;
-        public EmployeeDAL(ILogger<EmployeeDAL> logger, IConfiguration configuration)
+        private readonly IAuthService _authService;
+        public EmployeeDAL(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager ,ILogger<EmployeeDAL> logger, IConfiguration configuration, IAuthService authService)
         {
             _logger = logger;
-            _mySQlConnectionString = configuration.GetConnectionString("MySqlConnection");
-            _SQLServerConnectionString = configuration.GetConnectionString("SQLServerConnection");
+            _mySQlConnectionString = configuration.GetConnectionString("MySqlConnection")
+                                     ?? throw new ArgumentNullException(nameof(_mySQlConnectionString), "MySqlConnection string is null.");
+            _SQLServerConnectionString = configuration.GetConnectionString("SQLServerConnection")
+                                         ?? throw new ArgumentNullException(nameof(_SQLServerConnectionString), "SQLServerConnection string is null.");
+            _userManager = userManager;
+            _roleManager = roleManager;
+            _authService = authService;
+
         }
 
         public EmployeeModel MapReaderMySQlToEmployeeModel(MySqlDataReader reader)
@@ -145,123 +158,218 @@ namespace Integration_System.DAL
 
         public async Task<bool> InsertEmployeeAsync(EmployeeInsertDTO employeeDTO)
         {
-        using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-        using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
-
-        try
-        {
-        // Insert into SQL Server
-        await connectionSQLServer.OpenAsync();
-        Console.WriteLine("✅ Kết nối SQL Server thành công!");
-
-        string querySQLServer = @"
-            INSERT INTO Employees 
-            (FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentID, PositionID, Status, CreatedAt, UpdatedAt)
-            VALUES 
-            (@FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt);
-            SELECT SCOPE_IDENTITY();";
-
-        SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
-        commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
-        commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
-        commandSQLServer.Parameters.AddWithValue("@Gender", employeeDTO.Gender);
-        commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employeeDTO.PhoneNumber);
-        commandSQLServer.Parameters.AddWithValue("@Email", employeeDTO.Email);
-        commandSQLServer.Parameters.AddWithValue("@HireDate", employeeDTO.HireDate);
-        commandSQLServer.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
-        commandSQLServer.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
-        commandSQLServer.Parameters.AddWithValue("@Status", employeeDTO.Status);
-        commandSQLServer.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
-        commandSQLServer.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
-
-        object? insertedIdObj = await commandSQLServer.ExecuteScalarAsync();
-        int newEmployeeID = Convert.ToInt32(insertedIdObj);
-        Console.WriteLine($"✅ Insert vào SQL Server thành công, ID mới: {newEmployeeID}");
-
-        // Insert into MySQL
-        await connectionMySQL.OpenAsync();
-        Console.WriteLine("✅ Kết nối MySQL thành công!");
-
-        string queryMySQL = @"INSERT INTO employees (EmployeeID, FullName, DepartmentID, PositionID, Status) 
-                              VALUES (@EmployeeID, @FullName, @DepartmentId, @PositionId, @Status)";
-        MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
-        commandMySQL.Parameters.AddWithValue("@EmployeeID", newEmployeeID);
-        commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
-        commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
-        commandMySQL.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
-        commandMySQL.Parameters.AddWithValue("@Status", employeeDTO.Status);
-
-        int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
-
-        if (rowsAffectedMySQL > 0)
-        {
-            _logger.LogInformation("✅ Insert thành công vào cả hai hệ thống.");
-            return true;
-        }
-        else
-        {
-            _logger.LogWarning("❌ Insert vào MySQL thất bại.");
-            return false;
-        }
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "❌ Lỗi khi insert nhân viên vào SQL Server hoặc MySQL.");
-        return false;
-    }
-    finally
-    {
-        await connectionSQLServer.CloseAsync();
-        await connectionMySQL.CloseAsync();
-    }
-}
-
-
-        public async Task<bool> DeleteEmployeeAsync(int EmployeeId)
-        {
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
             using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
+
             try
             {
-                // Delete from MySQL
+                // Insert into SQL Server
+                await connectionSQLServer.OpenAsync();
+                Console.WriteLine("✅ Kết nối SQL Server thành công!");
+
+                string querySQLServer = @"
+                    INSERT INTO Employees 
+                    (FullName, DateofBirth, Gender, PhoneNumber, Email, HireDate, DepartmentID, PositionID, Status, CreatedAt, UpdatedAt)
+                    VALUES 
+                    (@FullName, @DateofBirth, @Gender, @PhoneNumber, @Email, @HireDate, @DepartmentId, @PositionId, @Status, @CreatedAt, @UpdatedAt);
+                    SELECT SCOPE_IDENTITY();";
+
+                SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
+                commandSQLServer.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+                commandSQLServer.Parameters.AddWithValue("@DateofBirth", employeeDTO.DateofBirth);
+                commandSQLServer.Parameters.AddWithValue("@Gender", employeeDTO.Gender);
+                commandSQLServer.Parameters.AddWithValue("@PhoneNumber", employeeDTO.PhoneNumber);
+                commandSQLServer.Parameters.AddWithValue("@Email", employeeDTO.Email);
+                commandSQLServer.Parameters.AddWithValue("@HireDate", employeeDTO.HireDate);
+                commandSQLServer.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+                commandSQLServer.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+                commandSQLServer.Parameters.AddWithValue("@Status", employeeDTO.Status);
+                commandSQLServer.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+                commandSQLServer.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
+
+                object? insertedIdObj = await commandSQLServer.ExecuteScalarAsync();
+                int newEmployeeID = Convert.ToInt32(insertedIdObj);
+                Console.WriteLine($"✅ Insert vào SQL Server thành công, ID mới: {newEmployeeID}");
+
+                // Insert into MySQL
                 await connectionMySQL.OpenAsync();
-                string deleteSalariesQuery = "DELETE FROM salaries WHERE EmployeeID = @EmployeeId";
-                MySqlCommand deleteSalariesCommand = new MySqlCommand(deleteSalariesQuery, connectionMySQL);
-                deleteSalariesCommand.Parameters.AddWithValue("@EmployeeId", EmployeeId);
-                int salaryRowsAffected = await deleteSalariesCommand.ExecuteNonQueryAsync();
-                string queryMySQL = @"DELETE FROM employees WHERE EmployeeID = @EmployeeId";
+                Console.WriteLine("✅ Kết nối MySQL thành công!");
+
+                string queryMySQL = @"INSERT INTO employees (EmployeeID, FullName, DepartmentID, PositionID, Status) 
+                                      VALUES (@EmployeeID, @FullName, @DepartmentId, @PositionId, @Status)";
                 MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL);
-                commandMySQL.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+                commandMySQL.Parameters.AddWithValue("@EmployeeID", newEmployeeID);
+                commandMySQL.Parameters.AddWithValue("@FullName", employeeDTO.FullName);
+                commandMySQL.Parameters.AddWithValue("@DepartmentId", employeeDTO.DepartmentId);
+                commandMySQL.Parameters.AddWithValue("@PositionId", employeeDTO.PositionId);
+                commandMySQL.Parameters.AddWithValue("@Status", employeeDTO.Status);
+
+                // create user
+                IdentityUser user = new()
+                {
+                    Email = employeeDTO.Email,
+                    SecurityStamp = Guid.NewGuid().ToString(),
+                    UserName = employeeDTO.FullName,
+                    EmailConfirmed = true, // confirm email by default
+
+                };
+
+                // save user to database
+                var result = await _userManager.CreateAsync(user, employeeDTO.PhoneNumber);
+                if (!result.Succeeded)
+                {
+                    var errors = string.Join(", ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+                    _logger.LogError("User creation failed for {Username}. Errors: {Errors}", employeeDTO.FullName, errors);
+                    return false;
+                }
+
+                _logger.LogInformation("User {Username} created successfully. Assigning default role.", employeeDTO.FullName);
+                // Updated line to handle nullable value type
+                await _authService.SetRole(employeeDTO.DepartmentId ?? throw new ArgumentNullException(nameof(employeeDTO.DepartmentId)), employeeDTO.FullName, user);
 
                 int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
-                // Delete from SQL Server
-                await connectionSQLServer.OpenAsync();
-                string querySQLServer = "DELETE FROM Employees WHERE EmployeeID = @EmployeeId; " +
-                                         "IF NOT EXISTS (SELECT 1 FROM Employees) DBCC CHECKIDENT ('Employees', RESEED, 0);";
-                SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer);
-                commandSQLServer.Parameters.AddWithValue("@EmployeeId", EmployeeId);
-                int rowsAffectedSQLServer = await commandSQLServer.ExecuteNonQueryAsync();
-                // Check if the delete was successful in both databases
-                if (rowsAffectedMySQL > 0 && rowsAffectedSQLServer > 0)
+
+                if (rowsAffectedMySQL > 0)
                 {
-                    _logger.LogInformation("Successfully deleted employee.");
+                    _logger.LogInformation("✅ Insert thành công vào cả hai hệ thống.");
                     return true;
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to delete employee.");
+                    _logger.LogWarning("❌ Insert vào MySQL thất bại.");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error while deleting employee from MySQL database or SQL Server database");
+                _logger.LogError(ex, "❌ Lỗi khi insert nhân viên vào SQL Server hoặc MySQL.");
                 return false;
             }
             finally
             {
                 await connectionSQLServer.CloseAsync();
                 await connectionMySQL.CloseAsync();
+            }
+        }
+
+
+        public async Task<bool> DeleteEmployeeAsync(int EmployeeId)
+        {
+            using var connectionSQLServer = new SqlConnection(_SQLServerConnectionString);
+            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
+            SqlTransaction? sqlTransaction = null;
+            string? emailToDelete = null;
+
+            try
+            {
+                await connectionSQLServer.OpenAsync();
+                sqlTransaction = connectionSQLServer.BeginTransaction();
+                _logger.LogDebug("SQL Server connection opened and transaction started for DeleteEmployeeAsync (ID: {EmployeeId}).", EmployeeId);
+
+                string getEmailQuery = "SELECT Email FROM Employees WHERE EmployeeID = @EmployeeId";
+                using (SqlCommand getEmailCommand = new SqlCommand(getEmailQuery, connectionSQLServer, sqlTransaction)) 
+                {
+                    getEmailCommand.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+                    object? result = await getEmailCommand.ExecuteScalarAsync();
+                    emailToDelete = result?.ToString();
+                }
+
+                if (string.IsNullOrEmpty(emailToDelete))
+                {
+                    _logger.LogWarning("Employee with ID {EmployeeId} not found or email is missing in SQL Server. Cannot proceed with deletion.", EmployeeId);
+                    await sqlTransaction.RollbackAsync(); 
+                    return false;
+                }
+                _logger.LogInformation("Found email '{Email}' for EmployeeID {EmployeeId}. Proceeding with deletion.", emailToDelete, EmployeeId);
+
+                string querySQLServer = "DELETE FROM Employees WHERE EmployeeID = @EmployeeId;";
+                using (SqlCommand commandSQLServer = new SqlCommand(querySQLServer, connectionSQLServer, sqlTransaction)) // Gán transaction
+                {
+                    commandSQLServer.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+                    int rowsAffectedSQLServer = await commandSQLServer.ExecuteNonQueryAsync();
+                    if (rowsAffectedSQLServer == 0)
+                    {
+                        _logger.LogWarning("Employee with ID {EmployeeId} was not found during SQL Server DELETE operation (potentially deleted concurrently).", EmployeeId);
+                        await sqlTransaction.RollbackAsync();
+                        return false; 
+                    }
+                    _logger.LogInformation("Successfully deleted record from SQL Server Employees table for ID: {EmployeeId}", EmployeeId);
+                }
+                await connectionMySQL.OpenAsync();
+                _logger.LogDebug("MySQL connection opened for DeleteEmployeeAsync (ID: {EmployeeId}).", EmployeeId);
+
+                string deleteSalariesQuery = "DELETE FROM salaries WHERE EmployeeID = @EmployeeId";
+                using (MySqlCommand deleteSalariesCommand = new MySqlCommand(deleteSalariesQuery, connectionMySQL))
+                {
+                    deleteSalariesCommand.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+                    int salaryRowsAffected = await deleteSalariesCommand.ExecuteNonQueryAsync();
+                    _logger.LogInformation("Deleted {Count} salary records from MySQL for EmployeeID: {EmployeeId}", salaryRowsAffected, EmployeeId);
+                }
+                string deleteAttendanceQuery = "DELETE FROM attendance WHERE EmployeeID = @EmployeeId";
+                using (MySqlCommand deleteAttendanceCommand = new MySqlCommand(deleteAttendanceQuery, connectionMySQL))
+                {
+                    deleteAttendanceCommand.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+                    int attendanceRowsAffected = await deleteAttendanceCommand.ExecuteNonQueryAsync();
+                    _logger.LogInformation("Deleted {Count} attendance records from MySQL for EmployeeID: {EmployeeId}", attendanceRowsAffected, EmployeeId);
+                }
+                string queryMySQL = @"DELETE FROM employees WHERE EmployeeID = @EmployeeId";
+                using (MySqlCommand commandMySQL = new MySqlCommand(queryMySQL, connectionMySQL))
+                {
+                    commandMySQL.Parameters.AddWithValue("@EmployeeId", EmployeeId);
+                    int rowsAffectedMySQL = await commandMySQL.ExecuteNonQueryAsync();
+                    if (rowsAffectedMySQL == 0)
+                    {
+                       
+                        _logger.LogWarning("Employee with ID {EmployeeId} was not found during MySQL DELETE operation.", EmployeeId);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Successfully deleted record from MySQL employees table for ID: {EmployeeId}", EmployeeId);
+                    }
+                }
+
+
+               
+                bool authUserDeleted = await _authService.DeleteUser(emailToDelete);
+
+                if (!authUserDeleted)
+                {
+                    
+                    _logger.LogError("CRITICAL: Failed to delete Identity user with email {Email} after deleting employee data for ID {EmployeeId}. Manual cleanup required!", emailToDelete, EmployeeId);
+                    
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully requested deletion of Identity user with email {Email}.", emailToDelete);
+                }
+                await sqlTransaction.CommitAsync();
+                _logger.LogInformation("SQL Server transaction committed for DeleteEmployeeAsync (ID: {EmployeeId}). Employee deletion process completed.", EmployeeId);
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error during DeleteEmployeeAsync for EmployeeID: {EmployeeId}", EmployeeId);
+                
+                if (sqlTransaction != null && connectionSQLServer.State == ConnectionState.Open)
+                {
+                    try { await sqlTransaction.RollbackAsync(); _logger.LogWarning("Rolled back SQL Server transaction due to exception during delete."); }
+                    catch (Exception rollbackEx) { _logger.LogError(rollbackEx, "Failed to rollback SQL Server transaction during delete."); }
+                }
+                return false; 
+            }
+            finally
+            {
+                if (connectionSQLServer.State == ConnectionState.Open)
+                {
+                    await connectionSQLServer.CloseAsync();
+                    _logger.LogDebug("SQL Server connection closed for DeleteEmployeeAsync.");
+                }
+                if (connectionMySQL.State == ConnectionState.Open)
+                {
+                    await connectionMySQL.CloseAsync();
+                    _logger.LogDebug("MySQL connection closed for DeleteEmployeeAsync.");
+                }
             }
         }
 
@@ -299,10 +407,23 @@ namespace Integration_System.DAL
                 commandMySQL.Parameters.AddWithValue("@Status", employeeDTO.Status);
                 commandMySQL.Parameters.AddWithValue("@EmployeeId", EmployeeId);
                 int affectedRowsMySQL = await commandMySQL.ExecuteNonQueryAsync();
-                // Check if the update was successful in both databases
                 if (affectedRowsMySQL > 0 && affectedRowsSQLServer > 0)
                 {
                     _logger.LogInformation("Successfully updated employee.");
+                    var user = await _userManager.FindByEmailAsync(employeeDTO.Email??throw new Exception());
+
+                    if (user != null)
+                    {
+                        var result = await _userManager.UpdateAsync(user);
+                        if (!result.Succeeded)
+                        {
+                            var errors = string.Join(", ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+                            _logger.LogError("User update failed for {Username}. Errors: {Errors}", employeeDTO.FullName, errors);
+                            return false;
+                        }
+                        _logger.LogInformation("User {Username} updated successfully. Assigning new role.", employeeDTO.FullName);
+                        await _authService.SetRole(employeeDTO.DepartmentId ?? throw new ArgumentNullException(nameof(employeeDTO.DepartmentId)), employeeDTO.FullName, user);
+                    }
                     return true;
                 }
                 else
