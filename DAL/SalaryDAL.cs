@@ -15,11 +15,14 @@ namespace Integration_System.DAL
     {
         private readonly string _mySQlConnectionString;
         private readonly ILogger<SalaryDAL> _logger;
+        private readonly string _sqlServerConnectionString;
         public SalaryDAL(IConfiguration configuration, ILogger<SalaryDAL> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _mySQlConnectionString = configuration?.GetConnectionString("MySqlConnection")
                                      ?? throw new ArgumentNullException(nameof(configuration), "MySqlConnection string is null.");
+            _sqlServerConnectionString = configuration?.GetConnectionString("SqlServerConnection")
+                             ?? throw new ArgumentNullException(nameof(configuration), "SqlServerConnection string is null.");
         }
 
         public SalaryModel MapReaderMySQlToSalaryModel(MySqlDataReader reader)
@@ -199,19 +202,19 @@ namespace Integration_System.DAL
         {
             var avgSalaries = new List<AvgSalaryByDeptDto>();
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
-            using var connectionSQLServer = new SqlConnection(_mySQlConnectionString);
+            using var connectionSQLServer = new SqlConnection(_sqlServerConnectionString);
 
             Dictionary<int, decimal> avgSalaryData = new Dictionary<int, decimal>();
             StringBuilder queryMySQLBuilder = new StringBuilder(@"
-                    SELECT e.department_id, AVG(s.NetSalary) as AverageSalary
-                    FROM salaries s
-                    JOIN employees e ON s.EmployeeID = e.employee_id ");
+                SELECT e.DepartmentID, AVG(s.NetSalary) as AverageSalary
+                FROM salaries s
+                JOIN employees e ON s.EmployeeID = e.EmployeeID ");
 
             List<string> conditions = new List<string>();
             MySqlCommand commandMySQL = new MySqlCommand();
             if (month.HasValue) { conditions.Add("MONTH(s.SalaryMonth) = @Month"); commandMySQL.Parameters.AddWithValue("@Month", month.Value); }
             if (conditions.Count > 0) { queryMySQLBuilder.Append(" WHERE ").Append(string.Join(" AND ", conditions)); }
-            queryMySQLBuilder.Append(" GROUP BY e.department_id");
+            queryMySQLBuilder.Append(" GROUP BY e.DepartmentID");
             commandMySQL.CommandText = queryMySQLBuilder.ToString();
             commandMySQL.Connection = connectionMySQL;
 
@@ -221,7 +224,7 @@ namespace Integration_System.DAL
                 MySqlDataReader readerMySQL = (MySqlDataReader)await commandMySQL.ExecuteReaderAsync();
                 while (await readerMySQL.ReadAsync())
                 {
-                    int deptId = readerMySQL.IsDBNull(readerMySQL.GetOrdinal("department_id")) ? 0 : readerMySQL.GetInt32(readerMySQL.GetOrdinal("department_id"));
+                    int deptId = readerMySQL.IsDBNull(readerMySQL.GetOrdinal("DepartmentID")) ? 0 : readerMySQL.GetInt32(readerMySQL.GetOrdinal("DepartmentID"));
                     decimal avgSalary = readerMySQL.IsDBNull(readerMySQL.GetOrdinal("AverageSalary")) ? 0 : readerMySQL.GetDecimal(readerMySQL.GetOrdinal("AverageSalary"));
                     if (deptId > 0)
                     {
@@ -296,27 +299,6 @@ namespace Integration_System.DAL
             _logger.LogInformation("No average salary data found for {Month}.", month?.ToString() ?? "All");
             return avgSalaries.OrderBy(s => s.DepartmentName).ToList();
         }
-        //        }
-        //        else
-        //        {
-        //            _logger.LogWarning($"No salary found with ID {SalaryID}.");
-        //            return false;
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error deleting salary");
-        //        return false;
-        //    }
-        //    finally
-        //    {
-        //        if (readerMySQL != null)
-        //        {
-        //            await readerMySQL.CloseAsync();
-        //        }
-        //        await connectionMySQL.CloseAsync();
-        //    }
-        //}
         public async Task<SalaryModel> getLatestEmployeeID(int EmployeeID)
         {
             using var mySqlConnection = new MySqlConnection(_mySQlConnectionString);
@@ -356,9 +338,9 @@ namespace Integration_System.DAL
             }
         }
 
-        internal async Task<IEnumerable<object>> GetSalariesAsync(object value, int month)
-        {
-            throw new NotImplementedException();
-        }
+        //internal async Task<IEnumerable<object>> GetSalariesAsync(object value, int month)
+        //{
+        //    throw new NotImplementedException();
+        //}
     }
 }

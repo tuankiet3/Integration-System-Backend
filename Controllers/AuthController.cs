@@ -10,6 +10,7 @@ using Integration_System.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Integration_System.Services;
 namespace Integration_System.Controllers
 {
     [Route("api/[controller]")]
@@ -20,16 +21,18 @@ namespace Integration_System.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthController> _logger;
+        private readonly IAuthService _authService;
 
-        public AuthController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, ILogger<AuthController> logger)
+        public AuthController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, ILogger<AuthController> logger, IAuthService authService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
             _logger = logger;
+            _authService = authService;
         }
 
-        [HttpPost("register")]
+        [HttpPost("register/admin")]
         // allow to access without authentication
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -42,14 +45,6 @@ namespace Integration_System.Controllers
                 return BadRequest(ModelState);
             }
             _logger.LogInformation("Registration attempt for user: {Username}", model.Username);
-
-            // check if user exists
-            var userExists = await _userManager.FindByNameAsync(model.Username);
-            if (userExists != null)
-            {
-                _logger.LogWarning("Registration failed: Username {Username} already exists.", model.Username);
-                return BadRequest(new ProblemDetails { Title = "Bad Request", Detail = $"Username '{model.Username}' already exists!" });
-            }
 
             // check if email exists
             var emailExists = await _userManager.FindByEmailAsync(model.Email);
@@ -81,12 +76,12 @@ namespace Integration_System.Controllers
             _logger.LogInformation("User {Username} created successfully. Assigning default role.", model.Username);
 
             // set default role is Employee
-            if (await _roleManager.RoleExistsAsync(UserRoles.Employee))
+            if (await _roleManager.RoleExistsAsync(UserRoles.Admin))
             {
-                var addToRoleResult = await _userManager.AddToRoleAsync(user, UserRoles.Employee);
+                var addToRoleResult = await _userManager.AddToRoleAsync(user, UserRoles.Admin);
                 if (addToRoleResult.Succeeded)
                 {
-                    _logger.LogInformation("Assigned role '{RoleName}' to user {Username}.", UserRoles.Employee, model.Username);
+                    _logger.LogInformation("Assigned role '{RoleName}' to user {Username}.", UserRoles.Admin, model.Username);
                 }
                 else
                 {
@@ -102,6 +97,7 @@ namespace Integration_System.Controllers
 
             return StatusCode(StatusCodes.Status201Created, new { Message = "User created successfully!" });
         }
+        
         [HttpPost("login")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
@@ -113,9 +109,9 @@ namespace Integration_System.Controllers
             {
                 return BadRequest(ModelState);
             }
-            _logger.LogInformation("Login attempt for user: {Username}", model.Username);
+            _logger.LogInformation("Login attempt for user: {email}", model.Email);
             // find user by username
-            var user = await _userManager.FindByNameAsync(model.Username);
+            var user = await _userManager.FindByEmailAsync(model.Email);
             if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
                 var userRoles = await _userManager.GetRolesAsync(user);
@@ -125,7 +121,7 @@ namespace Integration_System.Controllers
                     new Claim(ClaimTypes.NameIdentifier, user.Id), // UserId
                     new Claim(ClaimTypes.Name, user.UserName ?? string.Empty), // UserName
                     new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""), // Email
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique ID cho token
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique ID of token
                 };
 
                 foreach (var userRole in userRoles)
@@ -133,10 +129,10 @@ namespace Integration_System.Controllers
                     authClaims.Add(new Claim(ClaimTypes.Role, userRole)); // Thêm các roles vào claims
                 }
                 // create token based on claims
-                var token = CreateToken(authClaims);
+                var token = _authService.CreateToken(authClaims);
                 var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
-                _logger.LogInformation("User {Username} logged in successfully.", model.Username);
+                _logger.LogInformation("Login attempt for user: {email}", model.Email);
                 return Ok(new LoginResponseDto
                 {
                     Token = tokenString,
@@ -145,41 +141,8 @@ namespace Integration_System.Controllers
                     Roles = userRoles.ToList() // return roles as a list
                 });
             }
-            _logger.LogWarning("Login failed for user: {Username}. Invalid username or password.", model.Username);
+            _logger.LogWarning("Login failed for user: {Email}. Invalid Email or password.", model.Email);
             return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Invalid username or password." });
         }
-        private JwtSecurityToken CreateToken(List<Claim> authClaims)
-        {
-            var jwtKey = _configuration["Jwt:Key"];
-            var jwtIssuer = _configuration["Jwt:Issuer"];
-            var jwtAudience = _configuration["Jwt:Audience"];
-
-            if (string.IsNullOrEmpty(jwtKey) || string.IsNullOrEmpty(jwtIssuer) || string.IsNullOrEmpty(jwtAudience))
-            {
-                _logger.LogError("JWT Key, Issuer or Audience is not configured in appsettings.json");
-                throw new InvalidOperationException("JWT settings are missing or invalid.");
-            }
-
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-
-            _ = int.TryParse(_configuration["JWT:TokenValidityInMinutes"], out int tokenValidityInMinutes);
-            if (tokenValidityInMinutes <= 0)
-            {
-                tokenValidityInMinutes = 60; // Default value
-                _logger.LogWarning("JWT:TokenValidityInMinutes not configured or invalid. Using default value: {DefaultMinutes} minutes.", tokenValidityInMinutes);
-            }
-
-
-            var token = new JwtSecurityToken(
-                issuer: jwtIssuer,
-                audience: jwtAudience,
-                expires: DateTime.Now.AddMinutes(tokenValidityInMinutes),
-                claims: authClaims,
-                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-                );
-
-            return token;
-        }
-
     }
 }

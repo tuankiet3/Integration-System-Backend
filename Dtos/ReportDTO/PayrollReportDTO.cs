@@ -22,7 +22,6 @@ namespace Integration_System.Dtos.ReportDto
         public int DepartmentId { get; set; }
         public string DepartmentName { get; set; }
         public decimal AverageNetSalary { get; set; }
-        //public int? Year { get; set; }
         public int? Month { get; set; }
     }
 }

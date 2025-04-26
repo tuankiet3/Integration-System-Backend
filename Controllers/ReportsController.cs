@@ -5,11 +5,14 @@ using System;
 using System.Threading.Tasks;
 using Integration_System.Dtos.ReportDto;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Authorization;
+using Integration_System.Constants;
 
 namespace Integration_System.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ReportsController : ControllerBase
     {
         private readonly EmployeeDAL _employeeDAL;
@@ -28,6 +31,7 @@ namespace Integration_System.Controllers
 
         // GET: api/reports/hr?type={reportType}
         [HttpGet("hr")]
+        [Authorize(Roles = $"{UserRoles.Admin}, {UserRoles.Hr}")]
         [ProducesResponseType(typeof(HrReportDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -41,7 +45,7 @@ namespace Integration_System.Controllers
 
             try
             {
-                object reportData = null;
+                object? reportData = null;
                 string reportTypeLower = type.ToLowerInvariant();
 
                 switch (reportTypeLower)
@@ -78,6 +82,7 @@ namespace Integration_System.Controllers
 
         // GET: api/reports/payroll?type={reportType}
         [HttpGet("payroll")]
+        [Authorize(Roles = $"{UserRoles.Admin}, {UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(PayrollReportDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -104,6 +109,7 @@ namespace Integration_System.Controllers
                     case "avg_salary_by_dept":
                         reportData = await _salaryDAL.GetAverageSalaryByDeptAsync(month);
                         _logger.LogInformation("Generated avg_salary_by_dept report.");
+                        Console.WriteLine(reportData);
                         break;
 
                     default:
