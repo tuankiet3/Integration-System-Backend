@@ -50,7 +50,38 @@ namespace Integration_System.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Server Error", Detail = "Internal server error retrieving salaries." });
             }
         }
+        [HttpGet("employee/{employeeID}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement},{UserRoles.Employee}")]
+        [ProducesResponseType(typeof(IEnumerable<SalaryModel>), statusCode: 200)]
+        [ProducesResponseType(typeof(SalaryModel), statusCode: 200)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetSalaryByEmployeeId(int employeeID)
+        {
+            var currentUserIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            bool isAdminOrPayroll = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.PayrollManagement);
 
+            if (!isAdminOrPayroll)
+            {
+                _logger.LogWarning("Potential Forbidden Access: User {UserId} (Role: Employee) requested salary for employee {TargetEmployeeId}. Access allowed for now, requires ID check implementation.", currentUserIdClaim, employeeID);
+            }
+            try
+            {
+               List<SalaryModel> salary = await _salaryDAL.GetSalariesByEmployeeIDAsync(employeeID);
+                if (salary == null)
+                {
+                    _logger.LogWarning($"Salary for employee {employeeID} not found.");
+                    return NotFound(new ProblemDetails { Title = "Not Found", Detail = $"Salary not found for employee {employeeID}." });
+                }
+                _logger.LogInformation($"User {User.Identity?.Name} retrieved salary for employee {employeeID} successfully.");
+                return Ok(salary);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving salary for employee {EmployeeId}", employeeID);
+                return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Server Error", Detail = "Internal server error retrieving salary." });
+            }
+        }
         [HttpGet("employee/{employeeID}/history/{month}")]
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement},{UserRoles.Employee}")]
         [ProducesResponseType(typeof(SalaryModel), statusCode: 200)]

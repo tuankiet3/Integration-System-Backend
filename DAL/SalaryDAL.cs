@@ -116,6 +116,55 @@ namespace Integration_System.DAL
                 await connectionMySQL.CloseAsync();
             }
         }
+        public async Task<List<SalaryModel>> GetSalariesByEmployeeIDAsync(int employeeID)
+        {
+            using var connectionMySql = new MySqlConnection(_mySQlConnectionString);
+            var salaries = new List<SalaryModel>();
+            MySqlDataReader? readerMySQL = null;
+
+            try
+            {
+                await connectionMySql.OpenAsync();
+                string query = @"SELECT * FROM salaries WHERE EmployeeID = @EmployeeID";
+                MySqlCommand command = new MySqlCommand(query, connectionMySql);
+                command.Parameters.AddWithValue("@EmployeeID", employeeID);
+
+                readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync() ;
+
+                if (readerMySQL != null)
+                {
+                    while (await readerMySQL.ReadAsync())
+                    {
+                        var salary = MapReaderMySQlToSalaryModel(readerMySQL);
+                        salaries.Add(salary);
+                    }
+                }
+
+                if (salaries.Count == 0)
+                {
+                    _logger.LogWarning("No salary records found for employee ID {EmployeeID}.", employeeID);
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully retrieved {Count} salary record(s) for employee ID {EmployeeID}.", salaries.Count, employeeID);
+                }
+
+                return salaries;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving salary records for employee ID {EmployeeID}.", employeeID);
+                return new List<SalaryModel>();
+            }
+            finally
+            {
+                if (readerMySQL != null)
+                {
+                    await readerMySQL.CloseAsync();
+                }
+                await connectionMySql.CloseAsync();
+            }
+        }
         public async Task<SalaryModel?> getHistorySalary(int employeeID, int month)
         {
             using var connectionMySQl = new MySqlConnection(_mySQlConnectionString);
