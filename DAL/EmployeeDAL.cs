@@ -207,6 +207,7 @@ namespace Integration_System.DAL
                 // create user
                 IdentityUser user = new()
                 {
+                    Id = newEmployeeID.ToString(),
                     Email = employeeDTO.Email,
                     SecurityStamp = Guid.NewGuid().ToString(),
                     UserName = employeeDTO.FullName,

@@ -33,7 +33,7 @@ namespace Integration_System.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}, {UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(IEnumerable<EmployeeModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -53,7 +53,7 @@ namespace Integration_System.Controllers
         }
 
         [HttpGet("{EmployeeId}")]
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr},{UserRoles.Employee}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr},{UserRoles.Employee},{UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(EmployeeGetDTO), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

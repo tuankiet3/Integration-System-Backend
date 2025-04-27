@@ -22,7 +22,7 @@ namespace Integration_System.Controllers
             _logger = logger;
         }
         [HttpGet]
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}, {UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(IEnumerable<PositionModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllPositions()

@@ -19,7 +19,7 @@ namespace Integration_System.Controllers
             _logger = logger;
         }
         [HttpGet] // api/departments
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}, {UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(IEnumerable<DepartmentModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetAllDepartments()

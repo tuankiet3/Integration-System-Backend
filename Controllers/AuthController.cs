@@ -135,6 +135,7 @@ namespace Integration_System.Controllers
                 _logger.LogInformation("Login attempt for user: {email}", model.Email);
                 return Ok(new LoginResponseDto
                 {
+                    Id = user.Id,
                     Token = tokenString,
                     Expiration = token.ValidTo,
                     Username = user.UserName,

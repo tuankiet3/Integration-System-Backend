@@ -96,7 +96,6 @@ namespace Integration_System.Services
 
             return token;
         }
-
         public async Task<bool> DeleteUser(string email)
         {
             if (string.IsNullOrEmpty(email))
