@@ -1,4 +1,5 @@
-﻿namespace Integration_System.Dtos.AuthenticationDTO
+﻿// File: Integration-System/Dtos/AuthenticationDTO/LoginResponseDto.cs
+namespace Integration_System.Dtos.AuthenticationDTO
 {
     public class LoginResponseDto
     {

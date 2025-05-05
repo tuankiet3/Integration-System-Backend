@@ -1,4 +1,5 @@
-﻿using Integration_System.Dtos.AuthenticationDTO;
+﻿// File: Integration-System/Controllers/AuthController.cs
+using Integration_System.Dtos.AuthenticationDTO;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -33,10 +34,9 @@ namespace Integration_System.Controllers
         }
 
         [HttpPost("register/admin")]
-        // allow to access without authentication
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status201Created)]
-        [ProducesResponseType(typeof(ProblemDetails),StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Register([FromBody] RegisterDto model)
         {
@@ -44,9 +44,8 @@ namespace Integration_System.Controllers
             {
                 return BadRequest(ModelState);
             }
-            _logger.LogInformation("Registration attempt for user: {Username}", model.Username);
+            _logger.LogInformation("Registration attempt for email: {Email}", model.Email);
 
-            // check if email exists
             var emailExists = await _userManager.FindByEmailAsync(model.Email);
             if (emailExists != null)
             {
@@ -54,50 +53,53 @@ namespace Integration_System.Controllers
                 return BadRequest(new ProblemDetails { Title = "Bad Request", Detail = $"Email '{model.Email}' already exists!" });
             }
 
-            // create user
+            var userExists = await _userManager.FindByNameAsync(model.Email);
+            if (userExists != null)
+            {
+                _logger.LogWarning("Registration failed: Username (Email) {Email} already exists.", model.Email);
+                return BadRequest(new ProblemDetails { Title = "Bad Request", Detail = $"Username '{model.Email}' already exists!" });
+            }
+
+
             IdentityUser user = new()
             {
                 Email = model.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),
-                UserName = model.Username,
-                EmailConfirmed = true, // confirm email by default
+                UserName = model.Email, // Use Email as UserName
+                EmailConfirmed = true,
             };
 
-            // save user to database
             var result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
             {
                 var errors = string.Join(", ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-                _logger.LogError("User creation failed for {Username}. Errors: {Errors}", model.Username, errors);
-                // Trả về lỗi chi tiết hơn nếu có thể
+                _logger.LogError("User creation failed for {Email}. Errors: {Errors}", model.Email, errors);
                 return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "User Creation Failed", Detail = errors });
             }
 
-            _logger.LogInformation("User {Username} created successfully. Assigning default role.", model.Username);
+            _logger.LogInformation("User with email {Email} created successfully. Assigning default role.", model.Email);
 
-            // set default role is Employee
             if (await _roleManager.RoleExistsAsync(UserRoles.Admin))
             {
                 var addToRoleResult = await _userManager.AddToRoleAsync(user, UserRoles.Admin);
                 if (addToRoleResult.Succeeded)
                 {
-                    _logger.LogInformation("Assigned role '{RoleName}' to user {Username}.", UserRoles.Admin, model.Username);
+                    _logger.LogInformation("Assigned role '{RoleName}' to user {Email}.", UserRoles.Admin, model.Email);
                 }
                 else
                 {
                     var roleErrors = string.Join(", ", addToRoleResult.Errors.Select(e => $"{e.Code}: {e.Description}"));
-                    _logger.LogError("Failed to assign role '{RoleName}' to user {Username}. Errors: {Errors}", UserRoles.Employee, model.Username, roleErrors);
-                    // Cân nhắc xử lý lỗi này (ví dụ: xóa user vừa tạo hoặc báo lỗi cụ thể)
+                    _logger.LogError("Failed to assign role '{RoleName}' to user {Email}. Errors: {Errors}", UserRoles.Admin, model.Email, roleErrors);
                 }
             }
             else
             {
-                _logger.LogWarning("Role '{RoleName}' does not exist. Cannot assign to user {Username}.", UserRoles.Employee, model.Username);
+                _logger.LogWarning("Role '{RoleName}' does not exist. Cannot assign to user {Email}.", UserRoles.Admin, model.Email);
             }
 
             return StatusCode(StatusCodes.Status201Created, new { Message = "User created successfully!" });
         }
-        
+
         [HttpPost("login")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
@@ -110,7 +112,7 @@ namespace Integration_System.Controllers
                 return BadRequest(ModelState);
             }
             _logger.LogInformation("Login attempt for user: {email}", model.Email);
-            // find user by username
+
             var user = await _userManager.FindByEmailAsync(model.Email);
             if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
@@ -118,32 +120,32 @@ namespace Integration_System.Controllers
 
                 var authClaims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id), // UserId
-                    new Claim(ClaimTypes.Name, user.UserName ?? string.Empty), // UserName
-                    new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""), // Email
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique ID of token
+                    new Claim(ClaimTypes.NameIdentifier, user.Id),
+                    new Claim(ClaimTypes.Name, user.Email ?? string.Empty), // Use Email for Name claim
+                    new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 };
 
                 foreach (var userRole in userRoles)
                 {
-                    authClaims.Add(new Claim(ClaimTypes.Role, userRole)); // Thêm các roles vào claims
+                    authClaims.Add(new Claim(ClaimTypes.Role, userRole));
                 }
-                // create token based on claims
+
                 var token = _authService.CreateToken(authClaims);
                 var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
-                _logger.LogInformation("Login attempt for user: {email}", model.Email);
+                _logger.LogInformation("Login successful for user: {email}", model.Email);
                 return Ok(new LoginResponseDto
                 {
                     Id = user.Id,
                     Token = tokenString,
                     Expiration = token.ValidTo,
-                    Username = user.UserName,
-                    Roles = userRoles.ToList() // return roles as a list
+                    Username = user.Email, // Return Email as Username
+                    Roles = userRoles.ToList()
                 });
             }
             _logger.LogWarning("Login failed for user: {Email}. Invalid Email or password.", model.Email);
-            return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Invalid username or password." });
+            return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Invalid email or password." });
         }
     }
 }

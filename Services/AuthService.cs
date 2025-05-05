@@ -1,12 +1,12 @@
-﻿// File: Services/AuthService.cs
+﻿// File: Integration-System/Services/AuthService.cs
 using Integration_System.Constants;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.Extensions.Logging; // Thêm using cho ILogger
-using Microsoft.Extensions.Configuration; // Thêm using cho IConfiguration
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 
 namespace Integration_System.Services
 {
@@ -26,7 +26,7 @@ namespace Integration_System.Services
             _roleManager = roleManager;
         }
 
-        public async Task<bool> SetRole(int departmentID, string userName, IdentityUser user)
+        public async Task<bool> SetRole(int departmentID, string userEmail, IdentityUser user) // Changed userName to userEmail
         {
             var currentRoles = await _userManager.GetRolesAsync(user);
 
@@ -34,7 +34,7 @@ namespace Integration_System.Services
             if (!removeRolesResult.Succeeded)
             {
                 var removeErrors = string.Join(", ", removeRolesResult.Errors.Select(e => $"{e.Code}: {e.Description}"));
-                _logger.LogError("Failed to remove existing roles from user {Username}. Errors: {Errors}", userName, removeErrors);
+                _logger.LogError("Failed to remove existing roles from user {UserEmail}. Errors: {Errors}", userEmail, removeErrors);
                 return false;
             }
 
@@ -47,20 +47,20 @@ namespace Integration_System.Services
 
             if (!await _roleManager.RoleExistsAsync(newRole))
             {
-                _logger.LogError("Role '{RoleName}' does not exist. Cannot assign to user {Username}.", newRole, userName);
+                _logger.LogError("Role '{RoleName}' does not exist. Cannot assign to user {UserEmail}.", newRole, userEmail);
                 return false;
             }
 
             var addToRoleResult = await _userManager.AddToRoleAsync(user, newRole);
             if (addToRoleResult.Succeeded)
             {
-                _logger.LogInformation("Assigned role '{RoleName}' to user {Username}.", newRole, userName);
+                _logger.LogInformation("Assigned role '{RoleName}' to user {UserEmail}.", newRole, userEmail);
                 return true;
             }
             else
             {
                 var roleErrors = string.Join(", ", addToRoleResult.Errors.Select(e => $"{e.Code}: {e.Description}"));
-                _logger.LogError("Failed to assign role '{RoleName}' to user {Username}. Errors: {Errors}", newRole, userName, roleErrors);
+                _logger.LogError("Failed to assign role '{RoleName}' to user {UserEmail}. Errors: {Errors}", newRole, userEmail, roleErrors);
                 return false;
             }
         }

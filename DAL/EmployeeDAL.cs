@@ -1,4 +1,5 @@
-﻿using Integration_System.Model;
+﻿// File: Integration-System/DAL/EmployeeDAL.cs
+using Integration_System.Model;
 using MySql.Data.MySqlClient;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlClient.DataClassification;
@@ -271,65 +272,48 @@ namespace Integration_System.DAL
 
                 _logger.LogInformation("Đang tạo người dùng Identity...");
 
-                string baseUsername = new string(employeeDTO.FullName.Where(char.IsLetterOrDigit).ToArray());
-                if (string.IsNullOrWhiteSpace(baseUsername))
+                var userExists = await _userManager.FindByNameAsync(employeeDTO.Email);
+                if (userExists != null)
                 {
-                    baseUsername = $"user{DateTime.Now.Ticks}";
-                    _logger.LogWarning("FullName '{FullName}' không chứa ký tự chữ/số hợp lệ. Đã tạo username thay thế: {FallbackUsername}", employeeDTO.FullName, baseUsername);
+                    await sqlTransaction.RollbackAsync();
+                    return false;
                 }
-
-                string finalUsername = baseUsername;
-                int attempt = 0;
-                const int maxAttempts = 10;
-
-                while (await _userManager.FindByNameAsync(finalUsername) != null)
-                {
-                    attempt++;
-                    finalUsername = $"{baseUsername}{attempt}";
-                    _logger.LogWarning("Username '{BaseUsername}' đã tồn tại. Thử lại với '{FinalUsername}'...", baseUsername, finalUsername);
-                    if (attempt > maxAttempts)
-                    {
-                        _logger.LogError("❌ Không thể tạo username duy nhất cho '{BaseUsername}' sau {MaxAttempts} lần thử.", baseUsername, maxAttempts);
-                        await sqlTransaction.RollbackAsync();
-                        return false;
-                    }
-                }
-                _logger.LogInformation("Sử dụng username hợp lệ cuối cùng: {FinalUsername}", finalUsername);
 
                 identityUser = new IdentityUser()
                 {
                     Id = newEmployeeID.Value.ToString(),
                     Email = employeeDTO.Email,
                     SecurityStamp = Guid.NewGuid().ToString(),
-                    UserName = finalUsername,
+                    UserName = employeeDTO.Email, // Use Email as UserName
                     EmailConfirmed = true,
                 };
 
-                string initialPassword = employeeDTO.PhoneNumber ?? $"DefaultP@ss{Guid.NewGuid()}";
+                string initialPassword = employeeDTO.PhoneNumber ?? $"DefaultP@ss{Guid.NewGuid().ToString("N").Substring(0, 8)}";
                 if (string.IsNullOrWhiteSpace(initialPassword) || initialPassword.Length < 6)
                 {
-                    initialPassword = $"SecureP@ss{Guid.NewGuid()}";
-                    _logger.LogWarning("Số điện thoại không hợp lệ/thiếu, đã tạo mật khẩu mặc định mạnh cho người dùng {FinalUsername}.", finalUsername);
+                    initialPassword = $"SecureP@ss{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+                    _logger.LogWarning("Số điện thoại không hợp lệ/thiếu, đã tạo mật khẩu mặc định mạnh cho người dùng {FinalUsername}.", employeeDTO.Email);
                 }
+                _logger.LogInformation("Tạo Identity user với mật khẩu ban đầu (nên được thay đổi).");
 
                 var identityResult = await _userManager.CreateAsync(identityUser, initialPassword);
                 if (!identityResult.Succeeded)
                 {
-                    LogIdentityErrors("CreateAsync", finalUsername, identityResult.Errors);
+                    LogIdentityErrors("CreateAsync", employeeDTO.Email, identityResult.Errors);
                     await sqlTransaction.RollbackAsync();
                     return false;
                 }
-                _logger.LogInformation("✅ Identity user {FinalUsername} đã được tạo thành công với ID: {UserId}.", finalUsername, identityUser.Id);
+                _logger.LogInformation("✅ Identity user {FinalUsername} đã được tạo thành công với ID: {UserId}.", employeeDTO.Email, identityUser.Id);
 
-                bool roleAssigned = await _authService.SetRole(employeeDTO.DepartmentId ?? 0, finalUsername, identityUser);
+                bool roleAssigned = await _authService.SetRole(employeeDTO.DepartmentId ?? 0, employeeDTO.Email, identityUser);
                 if (!roleAssigned)
                 {
-                    _logger.LogError("❌ Gán vai trò thất bại cho người dùng {FinalUsername}. Rollback và xóa user.", finalUsername);
+                    _logger.LogError("❌ Gán vai trò thất bại cho người dùng {FinalUsername}. Rollback và xóa user.", employeeDTO.Email);
                     await _userManager.DeleteAsync(identityUser);
                     await sqlTransaction.RollbackAsync();
                     return false;
                 }
-                _logger.LogInformation("✅ Đã gán vai trò thành công cho người dùng {FinalUsername}.", finalUsername);
+                _logger.LogInformation("✅ Đã gán vai trò thành công cho người dùng {FinalUsername}.", employeeDTO.Email);
 
                 await connectionMySQL.OpenAsync();
                 _logger.LogInformation("✅ Kết nối MySQL thành công!");
@@ -634,13 +618,19 @@ namespace Integration_System.DAL
                     }
                 }
 
-                var user = await _userManager.FindByEmailAsync(oldEmail);
+                var user = await _userManager.FindByIdAsync(EmployeeId.ToString());
                 if (user == null)
                 {
-                    _logger.LogError("CRITICAL INCONSISTENCY: Identity user with old email {OldEmail} not found for EmployeeID {EmployeeId} during update. Manual intervention required.", oldEmail, EmployeeId);
+                    user = await _userManager.FindByEmailAsync(oldEmail);
+                }
+
+                if (user == null)
+                {
+                    _logger.LogError("CRITICAL INCONSISTENCY: Identity user with ID {EmployeeId} or old email {OldEmail} not found during update. Manual intervention required.", EmployeeId, oldEmail);
                     await sqlTransaction.RollbackAsync();
                     return false;
                 }
+
 
                 bool identityNeedsUpdate = false;
                 if (!string.Equals(oldEmail, employeeDTO.Email, StringComparison.OrdinalIgnoreCase))
@@ -663,40 +653,25 @@ namespace Integration_System.DAL
                     }
                 }
 
-                string newSanitizedUsername = new string(employeeDTO.FullName.Where(char.IsLetterOrDigit).ToArray());
-                if (string.IsNullOrWhiteSpace(newSanitizedUsername))
+
+                if (!string.Equals(user.UserName, employeeDTO.Email, StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogWarning("New FullName '{FullName}' for Employee {EmployeeId} resulted in invalid empty username. Username will not be updated.", employeeDTO.FullName, EmployeeId);
-                }
-                else if (!user.UserName?.StartsWith(newSanitizedUsername, StringComparison.OrdinalIgnoreCase) ?? true)
-                {
-                    string finalNewUsername = newSanitizedUsername;
-                    int attempt = 0;
-                    const int maxAttempts = 10;
-                    IdentityUser? existingUser = null;
-                    while ((existingUser = await _userManager.FindByNameAsync(finalNewUsername)) != null && existingUser.Id != user.Id)
+                    var existingUserWithNewUserName = await _userManager.FindByNameAsync(employeeDTO.Email);
+                    if (existingUserWithNewUserName != null && existingUserWithNewUserName.Id != user.Id)
                     {
-                        attempt++;
-                        finalNewUsername = $"{newSanitizedUsername}{attempt}";
-                        _logger.LogWarning("Generated username '{BaseUsername}' collision during update. Trying '{FinalUsername}'...", newSanitizedUsername, finalNewUsername);
-                        if (attempt > maxAttempts)
-                        {
-                            _logger.LogError("❌ Không thể tạo username duy nhất mới cho '{BaseUsername}' (EmployeeID {EmployeeId}) sau {MaxAttempts} lần thử. Username sẽ không được cập nhật.", newSanitizedUsername, EmployeeId, maxAttempts);
-                            finalNewUsername = null;
-                            break;
-                        }
+                        _logger.LogError("Cannot update username for user {OldUsername} (EmployeeID {EmployeeId}): New username '{NewUsername}' (email) is already taken by another user.", user.UserName, EmployeeId, employeeDTO.Email);
+                        await sqlTransaction.RollbackAsync();
+                        return false;
                     }
 
-                    if (finalNewUsername != null && !string.Equals(user.UserName, finalNewUsername, StringComparison.OrdinalIgnoreCase))
+
+                    _logger.LogInformation("Updating Identity username for user {OldUsername} to {NewUsername}", user.UserName, employeeDTO.Email);
+                    var setUsernameResult = await _userManager.SetUserNameAsync(user, employeeDTO.Email);
+                    if (!setUsernameResult.Succeeded) { LogIdentityErrors("SetUserNameAsync", user.UserName ?? "unknown", setUsernameResult.Errors); }
+                    else
                     {
-                        _logger.LogInformation("Updating Identity username for user {OldUsername} to {NewUsername}", user.UserName, finalNewUsername);
-                        var setUsernameResult = await _userManager.SetUserNameAsync(user, finalNewUsername);
-                        if (!setUsernameResult.Succeeded) { LogIdentityErrors("SetUserNameAsync", user.UserName ?? "unknown", setUsernameResult.Errors); }
-                        else
-                        {
-                            user.NormalizedUserName = _userManager.NormalizeName(finalNewUsername);
-                            identityNeedsUpdate = true;
-                        }
+                        user.NormalizedUserName = _userManager.NormalizeName(employeeDTO.Email);
+                        identityNeedsUpdate = true;
                     }
                 }
 
