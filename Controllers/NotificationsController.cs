@@ -29,23 +29,57 @@ namespace Integration_System.Controllers
             _notificationSalaryService = notificationSalaryService;
         }
 
-        [HttpPost("trigger/anniversary")]
+        [HttpPost("anniversary")]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> TriggerAnniversaryNotifications()
         {
-            _logger.LogInformation("User {User} manually triggered anniversary notification check.", User.Identity?.Name);
             try
             {
                 bool result = await _notificationSalaryMDW.CheckAndNotificationAnniversary();
-                _logger.LogInformation("Manual anniversary check completed. Result: {Result}", result);
-                return Ok(new { Message = $"Anniversary notification check triggered manually. Success: {result}" });
+                if(result)
+                {
+                    _logger.LogInformation("Anniversary notifications triggered successfully.");
+                    return Ok(new { Message = "Anniversary notifications triggered successfully." });
+                }
+                else
+                {
+                    _logger.LogWarning("No anniversary notifications to trigger.");
+                    return Ok(new { Message = "No anniversary notifications to trigger." });
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error during manual trigger of anniversary notifications.");
                 return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Internal Server Error", Detail = "Error triggering anniversary notifications.", Status = StatusCodes.Status500InternalServerError });
+            }
+        }
+
+        [HttpPost("absent")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> TriggerAbsentDayNotifications(int employeeId, int month)
+        {
+            try
+            {
+                bool result = await _notificationSalaryMDW.CheckAndNotifyAbsentDays(employeeId, month);
+                if (result)
+                {
+                    _logger.LogInformation("Absent day notifications triggered successfully.");
+                    return Ok(new { Message = "Absent day notifications triggered successfully." });
+                }
+                else
+                {
+                    _logger.LogWarning("No absent day notifications to trigger.");
+                    return Ok(new { Message = "No absent day notifications to trigger." });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during manual trigger of absent day notifications.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Internal Server Error", Detail = "Error triggering absent day notifications.", Status = StatusCodes.Status500InternalServerError });
             }
         }
 

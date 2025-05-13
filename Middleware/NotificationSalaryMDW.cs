@@ -51,18 +51,18 @@ namespace Integration_System.Middleware
             return true;
         }
 
-        public async Task<bool> CheckAndNotifyAbsentDays(int employeeId, int month, int year) 
+        public async Task<bool> CheckAndNotifyAbsentDays(int employeeId, int month) 
         {
-            _logger.LogInformation("Checking absent days for EmployeeId {EmployeeId} for month {Month}/{Year}", employeeId, month, year);
+            _logger.LogInformation("Checking absent days for EmployeeId {EmployeeId} for month {Month}", employeeId, month);
             try
             {
                 int absentDays = await _attendanceDAL.GetAbsentDayAsync(employeeId, month);
 
-                _logger.LogInformation("EmployeeId {EmployeeId} has {AbsentDays} absent days for month {Month}/{Year}", employeeId, absentDays, month, year);
+                _logger.LogInformation("EmployeeId {EmployeeId} has {AbsentDays} absent days for month {Month}", employeeId, absentDays, month);
 
                 if (absentDays > 3)
                 {
-                    string message = $"Employee {employeeId} as rested for more than 3 days in the month {month}/{year}. Total number of holidays:{absentDays}.";
+                    string message = $"Employee {employeeId} as rested for more than 3 days in the month {month}. Total number of holidays:{absentDays}.";
                     _logger.LogInformation("Notification to be created: {Message}", message);
 
                     await _redisService.AddNotificationAsync(new NotificationSalaryDTO
@@ -71,15 +71,15 @@ namespace Integration_System.Middleware
                         Message = message,
                         CreatedAt = DateTime.UtcNow
                     });
-                    _logger.LogInformation("Absent days notification successfully added for EmployeeId {EmployeeId}, month {Month}/{Year}.", employeeId, month, year);
+                    _logger.LogInformation("Absent days notification successfully added for EmployeeId {EmployeeId}, month {Month}.", employeeId, month);
                     return true; 
-                }
-                _logger.LogInformation("EmployeeId {EmployeeId} has not exceeded absent days limit for month {Month}/{Year}. No notification created.", employeeId, absentDays, month, year);
+                    }
+                    _logger.LogInformation("EmployeeId {EmployeeId} has {AbsentDays} absent days for month {Month}", employeeId, absentDays, month);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking and notifying absent days for EmployeeId {EmployeeId}, month {Month}/{Year}.", employeeId, month, year);
+                _logger.LogError("EmployeeId {EmployeeId} has {AbsentDays} absent days for month {Month}", "Error checking and notifying absent days for EmployeeId {EmployeeId}, month {Month}.", employeeId, month);
                 return false;
             }
         }
