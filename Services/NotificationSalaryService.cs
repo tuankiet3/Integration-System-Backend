@@ -43,7 +43,7 @@ namespace Integration_System.Services
 
             string json = JsonSerializer.Serialize(notification); // Chuyển đối tượng thông báo thành chuỗi JSON
             await _db.ListRightPushAsync(Key, json); // Đưa thông báo vào cuối danh sách Redis
-            await _db.KeyExpireAsync(Key, TimeSpan.FromDays(1)); // Đặt thời gian hết hạn cho khóa, tự động xóa sau 1 ngày
+            await _db.KeyExpireAsync(Key, TimeSpan.FromDays(1)); // Đặt thời gian hết CheckAndNotificationAnniversaryhạn cho khóa, tự động xóa sau 1 ngày
         }
 
         public async Task<List<NotificationSalaryDTO>> GetAllNotificationsAsync()

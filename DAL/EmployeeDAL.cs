@@ -617,7 +617,7 @@ namespace Integration_System.DAL
                         _logger.LogInformation("✅ Updated record in MySQL employees table for ID: {EmployeeId}", EmployeeId);
                     }
                 }
-
+                
                 var user = await _userManager.FindByIdAsync(EmployeeId.ToString());
                 if (user == null)
                 {

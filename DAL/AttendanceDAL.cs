@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
 using Integration_System.Dtos.AttendanceDto;
+using Mysqlx.Prepare;
 
 
 namespace Integration_System.DAL
@@ -17,11 +18,48 @@ namespace Integration_System.DAL
         private readonly string _mysqlConnectionString;
         private readonly ILogger<AttendanceDAL> _logger;
 
+
         public AttendanceDAL(IConfiguration configuration, ILogger<AttendanceDAL> logger)
         {
             _mysqlConnectionString = configuration.GetConnectionString("MySqlConnection") ?? throw new InvalidOperationException("Connection string 'MySqlConnection' not found");
             _logger = logger;
         }
+
+        public async Task<int> GetAbsentDayAsync(int employeeID, int month)
+        {
+            using var connection = new MySqlConnection(_mysqlConnectionString);
+            MySqlDataReader? reader = null;
+            int absentDays = 0;
+            try
+            {
+                await connection.OpenAsync();
+                string query = @"SELECT AbsentDays 
+                                 FROM attendance 
+                                 WHERE EmployeeID = @EmployeeID 
+                                   AND MONTH(AttendanceMonth) = @Month";
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@EmployeeID", employeeID);
+                command.Parameters.AddWithValue("@Month", month);
+                reader = (MySqlDataReader)await command.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    absentDays = reader.GetInt32(reader.GetOrdinal("AbsentDays"));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error when taking the absent day.");
+            }
+            finally
+            {
+                if (reader != null && !reader.IsClosed)
+                {
+                    await reader.DisposeAsync();
+                }
+            }
+            return absentDays;
+        }
+
 
         public async Task<IEnumerable<AttendanceModel>> GetAttendancesAsync()
         {

@@ -37,7 +37,7 @@ namespace Integration_System.Controllers
             }
         }
         [HttpGet("{DepartmentID}")] // api/departments/{id}
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}, {UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(DepartmentModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]

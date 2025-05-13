@@ -83,7 +83,7 @@ namespace Integration_System.Controllers
             }
         }
         [HttpGet("employee/{employeeID}/history/{month}")]
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement},{UserRoles.Employee}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement},{UserRoles.Employee}, {UserRoles.Hr}")]
         [ProducesResponseType(typeof(SalaryModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

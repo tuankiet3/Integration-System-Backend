@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Integration_System.Services;
+using Integration_System.DAL;
 namespace Integration_System.Controllers
 {
     [Route("api/[controller]")]
@@ -23,7 +24,6 @@ namespace Integration_System.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthController> _logger;
         private readonly IAuthService _authService;
-
         public AuthController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, ILogger<AuthController> logger, IAuthService authService)
         {
             _userManager = userManager;
@@ -141,7 +141,9 @@ namespace Integration_System.Controllers
                     Token = tokenString,
                     Expiration = token.ValidTo,
                     Username = user.Email, // Return Email as Username
-                    Roles = userRoles.ToList()
+                    Roles = userRoles.ToList(),
+                   
+
                 });
             }
             _logger.LogWarning("Login failed for user: {Email}. Invalid Email or password.", model.Email);

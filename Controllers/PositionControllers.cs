@@ -40,7 +40,7 @@ namespace Integration_System.Controllers
             }
         }
         [HttpGet("{PositionID}")]
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}, {UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(PositionModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
