@@ -20,7 +20,7 @@ namespace Integration_System.Dtos.SalaryDTO
 
 
         public decimal? Bonus { get; set; } = 0;
-        public decimal? Deductions { get; set; } = 0;
+        //public decimal? Deductions { get; set; } = 0;
         //[Required(ErrorMessage = "Net salary là bắt buộc")]
         //[Range(0, double.MaxValue, ErrorMessage = "Net salary không hợp lệ")]
         //public decimal NetSalary { get; set; }

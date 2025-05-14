@@ -103,14 +103,16 @@ namespace Integration_System.Middleware
         public async Task<bool> CheckAndNotifySalary(SalaryInsertDTO salary)
         {
             SalaryModel salaryModel = await _salaryDAL.getLatestEmployeeID(salary.EmployeeId);
-            decimal netSalary = salary.BaseSalary + (salary.Bonus ?? 0) - (salary.Deductions ?? 0);
+            int absenDay = await _attendanceDAL.GetAbsentDayAsync(salary.EmployeeId, salary.SalaryMonth.Month);
+            decimal deductions = (salary.BaseSalary * 0.10m) + (200 * absenDay);
+            decimal netSalary = salary.BaseSalary + (salary.Bonus ?? 0) - (deductions);
 
             if (salaryModel == null)
             {
                 _logger.LogWarning($"No salary found for EmployeeId {salary.EmployeeId}");
                 return false;
             }
-            else if (Math.Abs(netSalary - salaryModel.NetSalary) > 2000)
+            else if (Math.Abs(netSalary - salaryModel.NetSalary) > 5000)
             {
                 string message = $"Net salary for Employee {salary.EmployeeId} has an unsual gap";
                 await _redisService.AddNotificationAsync(new NotificationSalaryDTO

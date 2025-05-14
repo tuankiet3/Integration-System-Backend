@@ -135,10 +135,15 @@ namespace Integration_System.Controllers
             }
             try
             {
+                bool checkInsert = await _salaryDAL.checkInsertSalary(salary.EmployeeId, salary.SalaryMonth);
+                if (checkInsert) { 
+                    return BadRequest(new ProblemDetails { Title = "Bad Request", Detail = $"Salary record already exists for this employeeID {salary.EmployeeId} for month {salary.SalaryMonth.Month}." });
+                }
                 bool isWarning = await _notificationSalary.CheckAndNotifySalary(salary);
                 if (isWarning)
                 {
                     _logger.LogInformation("Unusual salary deviation detected and notification sent for EmployeeId {EmployeeId} by user {User}.", salary.EmployeeId, User.Identity?.Name);
+                    return BadRequest(new ProblemDetails { Title = "Warning", Detail = "Unusual salary deviation detected. Notification sent." });
                 }
 
                 bool createdSalary = await _salaryDAL.InserSalary(salary);

@@ -16,13 +16,15 @@ namespace Integration_System.DAL
         private readonly string _mySQlConnectionString;
         private readonly ILogger<SalaryDAL> _logger;
         private readonly string _sqlServerConnectionString;
-        public SalaryDAL(IConfiguration configuration, ILogger<SalaryDAL> logger)
+        private readonly AttendanceDAL _AttendanceDAL;
+        public SalaryDAL(IConfiguration configuration, ILogger<SalaryDAL> logger, AttendanceDAL attendanceDAL)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _mySQlConnectionString = configuration?.GetConnectionString("MySqlConnection")
                                      ?? throw new ArgumentNullException(nameof(configuration), "MySqlConnection string is null.");
             _sqlServerConnectionString = configuration?.GetConnectionString("SqlServerConnection")
                              ?? throw new ArgumentNullException(nameof(configuration), "SqlServerConnection string is null.");
+            _AttendanceDAL = attendanceDAL;
         }
 
         public SalaryModel MapReaderMySQlToSalaryModel(MySqlDataReader reader)
@@ -77,7 +79,9 @@ namespace Integration_System.DAL
         }
         public async Task<bool> InserSalary(SalaryInsertDTO salary)
         {
-            
+            int absenDay = await _AttendanceDAL.GetAbsentDayAsync(salary.EmployeeId, salary.SalaryMonth.Month);
+            decimal deductions = (salary.BaseSalary * 0.10m) + (200*absenDay);
+            Console.WriteLine($"absenDayádsadasd: {absenDay}");
             using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
             try
             {
@@ -88,8 +92,8 @@ namespace Integration_System.DAL
                 command.Parameters.AddWithValue("@SalaryMonth", salary.SalaryMonth);
                 command.Parameters.AddWithValue("@BaseSalary", salary.BaseSalary);
                 command.Parameters.AddWithValue("@Bonus", salary.Bonus);
-                command.Parameters.AddWithValue("@Deductions", salary.Deductions);
-                decimal NetSalary = salary.BaseSalary + (salary.Bonus ?? 0) - (salary.Deductions ?? 0);
+                command.Parameters.AddWithValue("@Deductions", deductions);
+                decimal NetSalary = salary.BaseSalary + (salary.Bonus ?? 0) - (deductions);
                 command.Parameters.AddWithValue("@NetSalary", NetSalary);
                 command.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                 int rowsAffected = await command.ExecuteNonQueryAsync();
@@ -391,5 +395,49 @@ namespace Integration_System.DAL
         //{
         //    throw new NotImplementedException();
         //}
+
+        // Check Insert
+        public async Task<bool> checkInsertSalary(int employeeID, DateTime month)
+        {
+            using var connectionMySQL = new MySqlConnection(_mySQlConnectionString);
+            MySqlDataReader? readerMySQL = null;
+            try
+            {
+                await connectionMySQL.OpenAsync();
+                string query = @"SELECT 1 FROM salaries 
+                         WHERE EmployeeID = @EmployeeID 
+                         AND MONTH(SalaryMonth) = @Month 
+                         AND YEAR(SalaryMonth) = @Year
+                         LIMIT 1;";
+                MySqlCommand command = new MySqlCommand(query, connectionMySQL);
+                command.Parameters.AddWithValue("@EmployeeID", employeeID);
+                command.Parameters.AddWithValue("@Month", month.Month);
+                command.Parameters.AddWithValue("@Year", month.Year);
+                readerMySQL = (MySqlDataReader)await command.ExecuteReaderAsync();
+                if (readerMySQL.HasRows)
+                {
+                    _logger.LogWarning("Salary record already exists for employee ID {EmployeeID} for month {Month}.", employeeID, month);
+                    return true; // Salary record already exists
+                }
+                else
+                {
+                    _logger.LogInformation("No salary record found for employee ID {EmployeeID} for month {Month}.", employeeID, month);
+                    return false; // No salary record found
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking salary");
+                return false;
+            }
+            finally
+            {
+                if (readerMySQL != null)
+                {
+                    await readerMySQL.CloseAsync();
+                }
+                await connectionMySQL.CloseAsync();
+            }
+        }
     }
 }
