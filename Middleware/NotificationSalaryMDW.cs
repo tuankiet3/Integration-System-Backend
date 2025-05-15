@@ -64,12 +64,12 @@ namespace Integration_System.Middleware
             try
             {
                 int absentDays = await _attendanceDAL.GetAbsentDayAsync(employeeId, month);
-
+                int leaveDays = await _attendanceDAL.GetLeaveDayAsync(employeeId, month);
                 _logger.LogInformation("EmployeeId {EmployeeId} has {AbsentDays} absent days for month {Month}", employeeId, absentDays, month);
 
-                if (absentDays > 3)
+                if (absentDays > leaveDays)
                 {
-                    string message = $"Employee {employeeId} as rested for more than 3 days in the month {month}. Total number of holidays:{absentDays}.";
+                    string message = $"Employee {employeeId} as rested for more than leave days in the month {month}. Total number of holidays:{absentDays}.";
                     _logger.LogInformation("Notification to be created: {Message}", message);
 
                     await _redisService.AddNotificationAsync(new NotificationSalaryDTO

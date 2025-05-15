@@ -60,6 +60,40 @@ namespace Integration_System.DAL
             return absentDays;
         }
 
+        public async Task<int> GetLeaveDayAsync(int employeeID, int month)
+        {
+            using var connection = new MySqlConnection(_mysqlConnectionString);
+            MySqlDataReader? reader = null;
+            int leaveDays = 0;
+            try
+            {
+                await connection.OpenAsync();
+                string query = @"SELECT LeaveDays 
+                                 FROM attendance 
+                                 WHERE EmployeeID = @EmployeeID 
+                                   AND MONTH(AttendanceMonth) = @Month";
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@EmployeeID", employeeID);
+                command.Parameters.AddWithValue("@Month", month);
+                reader = (MySqlDataReader)await command.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    leaveDays = reader.GetInt32(reader.GetOrdinal("LeaveDays"));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error when taking the leave day.");
+            }
+            finally
+            {
+                if (reader != null && !reader.IsClosed)
+                {
+                    await reader.DisposeAsync();
+                }
+            }
+            return leaveDays;
+        }
 
         public async Task<IEnumerable<AttendanceModel>> GetAttendancesAsync()
         {
