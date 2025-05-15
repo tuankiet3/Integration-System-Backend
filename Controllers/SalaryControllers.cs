@@ -51,7 +51,7 @@ namespace Integration_System.Controllers
             }
         }
         [HttpGet("employee/{employeeID}")]
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement},{UserRoles.Employee}")]
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement},{UserRoles.Employee}, {UserRoles.Hr}")]
         [ProducesResponseType(typeof(IEnumerable<SalaryModel>), statusCode: 200)]
         [ProducesResponseType(typeof(SalaryModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
