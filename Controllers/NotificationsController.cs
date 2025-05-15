@@ -68,7 +68,8 @@ namespace Integration_System.Controllers
                 if (result)
                 {
                     _logger.LogInformation("Absent day notifications triggered successfully.");
-                    return Ok(new { Message = "Absent day notifications triggered successfully." });
+                    return Ok(new { Message = "Absent day notifications triggered successfully."
+                    });
                 }
                 else
                 {
@@ -84,7 +85,6 @@ namespace Integration_System.Controllers
         }
 
         [HttpGet("list")]
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.PayrollManagement}")]
         [ProducesResponseType(typeof(List<NotificationSalaryDTO>), statusCode: 200)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

@@ -30,25 +30,32 @@ namespace Integration_System.Middleware
         public async Task<bool> CheckAndNotificationAnniversary()
         {
             List<EmployeeModel> listEmployees = await _employeeDAL.GetAllEmployeesAsync();
+            bool notificationsTriggered = false; // Biến theo dõi xem có thông báo nào được kích hoạt không
+
             foreach (var employee in listEmployees)
             {
+                // Kiểm tra nếu số ngày làm việc >= 365 (khoảng 1 năm)
+                // và < 366 (đảm bảo chỉ chạy trong 1 ngày kỷ niệm)
                 if ((DateTime.UtcNow - employee.HireDate).TotalDays >= 365 && (DateTime.UtcNow - employee.HireDate).TotalDays < 366)
                 {
-                    string message = $"Today is the anniversary of employee {employee.EmployeeId}";
+                    string message = $"Chúc mừng kỷ niệm 1 năm làm việc tại công ty, nhân viên {employee.FullName} (ID: {employee.EmployeeId})!";
+                    _logger.LogInformation("Kích hoạt thông báo kỷ niệm 1 năm cho nhân viên {EmployeeId}", employee.EmployeeId);
+
                     await _redisService.AddNotificationAsync(new NotificationSalaryDTO
                     {
                         EmployeeId = employee.EmployeeId,
                         Message = message,
                         CreatedAt = DateTime.UtcNow
                     });
+                    notificationsTriggered = true; // Đánh dấu đã kích hoạt ít nhất một thông báo
                 }
             }
-            if (listEmployees.Count == 0)
+            if (!notificationsTriggered)
             {
-                _logger.LogWarning("No employees found for anniversary notification");
-                return false;
+                _logger.LogInformation("Không có nhân viên nào đạt kỷ niệm 1 năm trong hôm nay.");
             }
-            return true;
+
+            return notificationsTriggered; // Trả về true nếu có thông báo được kích hoạt, ngược lại trả về false
         }
 
         public async Task<bool> CheckAndNotifyAbsentDays(int employeeId, int month) 
