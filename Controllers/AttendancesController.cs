@@ -44,6 +44,32 @@ namespace Integration_System.Controllers
             }
         }
 
+        [HttpGet("employee/{employeeId}")] //GET: api/attendances/employee/{employeeId}
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr},{UserRoles.PayrollManagement},{UserRoles.Employee}")]
+        [ProducesResponseType(typeof(IEnumerable<AttendanceModel>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetAttendanceByEmployeeId(int employeeId)
+        {
+            try
+            {
+                var attendanceRecords = await _attendanceDAL.GetAttendancesByEmployeeIdAsync(employeeId);
+                if (attendanceRecords == null || !attendanceRecords.Any())
+                {
+                    _logger.LogWarning("Attendance records not found for Employee ID {EmployeeId}.", employeeId);
+                    return NotFound(new ProblemDetails { Title = "Not Found", Detail = $"Attendance records not found for Employee ID {employeeId}." });
+                }
+                _logger.LogInformation("Attendance records for Employee ID {EmployeeId} retrieved successfully by user {User}.", employeeId, User.Identity?.Name);
+                return Ok(attendanceRecords);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving attendance records for Employee ID {EmployeeId}.", employeeId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Title = "Server Error", Detail = "Internal server error retrieving attendance records." });
+            }
+        }
+
         [HttpGet("{attendanceId}")] //GET: api/attendances/{attendanceId}
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Hr}")]
         [ProducesResponseType(typeof(AttendanceModel), StatusCodes.Status200OK)]

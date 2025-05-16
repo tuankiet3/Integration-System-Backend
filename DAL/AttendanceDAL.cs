@@ -94,7 +94,41 @@ namespace Integration_System.DAL
             }
             return leaveDays;
         }
+        public async Task<IEnumerable<AttendanceModel>> GetAttendancesByEmployeeIdAsync(int employeeID)
+        {
+            var attendanceList = new List<AttendanceModel>();
+            using var connection = new MySqlConnection(_mysqlConnectionString);
+            MySqlDataReader? reader = null;
+            try
+            {
+                await connection.OpenAsync();
+                string query = "SELECT AttendanceID, EmployeeID, WorkDays, AbsentDays, LeaveDays, AttendanceMonth, CreatedAt FROM attendance WHERE EmployeeID = @EmployeeID ORDER BY AttendanceMonth DESC, AttendanceID ASC";
 
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@EmployeeID", employeeID);
+
+                reader = (MySqlDataReader)await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    attendanceList.Add(MapReaderToAttendanceModel(reader));
+                }
+                _logger.LogInformation("Successfully retrieved {Count} attendance records for Employee ID {EmployeeID}.", attendanceList.Count, employeeID);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error when taking the timekeeping list for Employee ID {EmployeeID}.", employeeID);
+                throw;
+            }
+            finally
+            {
+                if (reader != null && !reader.IsClosed)
+                {
+                    await reader.DisposeAsync();
+                }
+            }
+            return attendanceList;
+        }
         public async Task<IEnumerable<AttendanceModel>> GetAttendancesAsync()
         {
             var attendanceList = new List<AttendanceModel>();
