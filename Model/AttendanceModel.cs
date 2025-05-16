@@ -23,8 +23,8 @@ namespace Integration_System.Model
         public int LeaveDays { get { return leaveDays; } set { leaveDays = value; } }
         ///////////////////////////
         [Required]
-        private int attendanceMonth;
-        public int AttendanceMonth { get { return attendanceMonth; } set { attendanceMonth = value; } }
+        private DateTime attendanceMonth;
+        public DateTime AttendanceMonth { get { return attendanceMonth; } set { attendanceMonth = value; } }
         ///////////////////////////
         //private int createrAt;
         //public int CreaterAt { get { return createrAt; } set { createrAt = value; } }

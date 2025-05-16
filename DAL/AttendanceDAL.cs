@@ -1,14 +1,14 @@
 ﻿using Integration_System.Model;
-using MySql.Data.MySqlClient; // Import thư viện MySQL
-// Bỏ using System.Data.Common; nếu không dùng đến DbDataReader nữa
+using MySql.Data.MySqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Data;
+using System.Data; // Cần using System.Data
 using System.Threading.Tasks;
 using Integration_System.Dtos.AttendanceDto;
-using Mysqlx.Prepare;
+// Bỏ Mysqlx.Prepare nếu không dùng đến
+// using Mysqlx.Prepare;
 
 
 namespace Integration_System.DAL
@@ -25,6 +25,9 @@ namespace Integration_System.DAL
             _logger = logger;
         }
 
+        // Các phương thức GetAbsentDayAsync, GetLeaveDayAsync vẫn giữ nguyên
+        // vì chúng nhận tháng dưới dạng int và truy vấn database dựa trên số tháng
+
         public async Task<int> GetAbsentDayAsync(int employeeID, int month)
         {
             using var connection = new MySqlConnection(_mysqlConnectionString);
@@ -33,13 +36,19 @@ namespace Integration_System.DAL
             try
             {
                 await connection.OpenAsync();
-                string query = @"SELECT AbsentDays 
-                                 FROM attendance 
-                                 WHERE EmployeeID = @EmployeeID 
-                                   AND MONTH(AttendanceMonth) = @Month";
+                // Truy vấn database dựa trên tháng (int) và năm hiện tại (hoặc năm cụ thể nếu cần)
+                // Giả định bạn muốn lấy số ngày nghỉ của tháng và năm cụ thể
+                // Nếu cột AttendanceMonth trong DB chỉ lưu tháng, bạn cần logic khác.
+                // Nếu cột AttendanceMonth lưu full date (như giả định trước), truy vấn này hoạt động
+                string query = @"SELECT AbsentDays
+                                 FROM attendance
+                                 WHERE EmployeeID = @EmployeeID
+                                   AND MONTH(AttendanceMonth) = @Month
+                                   AND YEAR(AttendanceMonth) = @Year"; // Thêm điều kiện năm
                 using var command = new MySqlCommand(query, connection);
                 command.Parameters.AddWithValue("@EmployeeID", employeeID);
                 command.Parameters.AddWithValue("@Month", month);
+                command.Parameters.AddWithValue("@Year", DateTime.Now.Year); // Lấy năm hiện tại. Cân nhắc thêm tham số năm nếu cần lấy theo năm khác
                 reader = (MySqlDataReader)await command.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
@@ -48,13 +57,17 @@ namespace Integration_System.DAL
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error when taking the absent day.");
+                _logger.LogError(ex, "Error when taking the absent day for employee {EmployeeID} in month {Month}.", employeeID, month);
             }
             finally
             {
                 if (reader != null && !reader.IsClosed)
                 {
                     await reader.DisposeAsync();
+                }
+                if (connection.State == ConnectionState.Open)
+                {
+                    await connection.CloseAsync();
                 }
             }
             return absentDays;
@@ -68,13 +81,15 @@ namespace Integration_System.DAL
             try
             {
                 await connection.OpenAsync();
-                string query = @"SELECT LeaveDays 
-                                 FROM attendance 
-                                 WHERE EmployeeID = @EmployeeID 
-                                   AND MONTH(AttendanceMonth) = @Month";
+                string query = @"SELECT LeaveDays
+                                 FROM attendance
+                                 WHERE EmployeeID = @EmployeeID
+                                   AND MONTH(AttendanceMonth) = @Month
+                                   AND YEAR(AttendanceMonth) = @Year"; // Thêm điều kiện năm
                 using var command = new MySqlCommand(query, connection);
                 command.Parameters.AddWithValue("@EmployeeID", employeeID);
                 command.Parameters.AddWithValue("@Month", month);
+                command.Parameters.AddWithValue("@Year", DateTime.Now.Year); // Lấy năm hiện tại. Cân nhắc thêm tham số năm nếu cần lấy theo năm khác
                 reader = (MySqlDataReader)await command.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
@@ -83,74 +98,42 @@ namespace Integration_System.DAL
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error when taking the leave day.");
+                _logger.LogError(ex, "Error when taking the leave day for employee {EmployeeID} in month {Month}.", employeeID, month);
             }
             finally
             {
                 if (reader != null && !reader.IsClosed)
                 {
                     await reader.DisposeAsync();
+                }
+                if (connection.State == ConnectionState.Open)
+                {
+                    await connection.CloseAsync();
                 }
             }
             return leaveDays;
         }
-        public async Task<IEnumerable<AttendanceModel>> GetAttendancesByEmployeeIdAsync(int employeeID)
-        {
-            var attendanceList = new List<AttendanceModel>();
-            using var connection = new MySqlConnection(_mysqlConnectionString);
-            MySqlDataReader? reader = null;
-            try
-            {
-                await connection.OpenAsync();
-                string query = "SELECT AttendanceID, EmployeeID, WorkDays, AbsentDays, LeaveDays, AttendanceMonth, CreatedAt FROM attendance WHERE EmployeeID = @EmployeeID ORDER BY AttendanceMonth DESC, AttendanceID ASC";
 
-                using var command = new MySqlCommand(query, connection);
-                command.Parameters.AddWithValue("@EmployeeID", employeeID);
 
-                reader = (MySqlDataReader)await command.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    attendanceList.Add(MapReaderToAttendanceModel(reader));
-                }
-                _logger.LogInformation("Successfully retrieved {Count} attendance records for Employee ID {EmployeeID}.", attendanceList.Count, employeeID);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error when taking the timekeeping list for Employee ID {EmployeeID}.", employeeID);
-                throw;
-            }
-            finally
-            {
-                if (reader != null && !reader.IsClosed)
-                {
-                    await reader.DisposeAsync();
-                }
-            }
-            return attendanceList;
-        }
         public async Task<IEnumerable<AttendanceModel>> GetAttendancesAsync()
         {
             var attendanceList = new List<AttendanceModel>();
-            // use using statement to ensure connection is closed
             using var connection = new MySqlConnection(_mysqlConnectionString);
             MySqlDataReader? reader = null;
             try
             {
-                // open connection
                 await connection.OpenAsync();
+                // Đảm bảo query lấy cột AttendanceMonth
                 string query = "SELECT AttendanceID, EmployeeID, WorkDays, AbsentDays, LeaveDays, AttendanceMonth, CreatedAt FROM attendance ORDER BY AttendanceMonth DESC, EmployeeID ASC";
-                
+
                 using var command = new MySqlCommand(query, connection);
-                // ExecuteReaderAsync is used to execute the command and return a MySqlDataReader
                 reader = (MySqlDataReader)await command.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
                 {
-                    // use MapReaderToAttendanceModel to map the data from the reader to the AttendanceModel
                     attendanceList.Add(MapReaderToAttendanceModel(reader));
                 }
-                _logger.LogInformation("Success {Count} attendance records.", attendanceList.Count);
+                _logger.LogInformation("Successfully retrieved {Count} attendance records.", attendanceList.Count);
             }
             catch (Exception ex)
             {
@@ -162,6 +145,10 @@ namespace Integration_System.DAL
                 if (reader != null && !reader.IsClosed)
                 {
                     await reader.DisposeAsync();
+                }
+                if (connection.State == ConnectionState.Open)
+                {
+                    await connection.CloseAsync();
                 }
             }
             return attendanceList;
@@ -175,9 +162,9 @@ namespace Integration_System.DAL
             try
             {
                 await connection.OpenAsync();
+                // Đảm bảo query lấy cột AttendanceMonth
                 string query = "SELECT AttendanceID, EmployeeID, WorkDays, AbsentDays, LeaveDays, AttendanceMonth, CreatedAt FROM attendance WHERE AttendanceID = @AttendanceID";
                 using var command = new MySqlCommand(query, connection);
-                // add parameter to prevent SQL injection
                 command.Parameters.AddWithValue("@AttendanceID", attendanceId);
                 reader = (MySqlDataReader)await command.ExecuteReaderAsync();
 
@@ -205,22 +192,61 @@ namespace Integration_System.DAL
                 {
                     await reader.DisposeAsync();
                 }
+                if (connection.State == ConnectionState.Open)
+                {
+                    await connection.CloseAsync();
+                }
             }
             return attendance;
-        }   
-        private AttendanceModel MapReaderToAttendanceModel(MySqlDataReader reader)
+        }
+
+        // Phương thức mới để lấy attendance theo EmployeeID
+        public async Task<IEnumerable<AttendanceModel>> GetAttendancesByEmployeeIdAsync(int employeeID)
         {
-            int attendanceMonthValue = 0;
+            var attendanceList = new List<AttendanceModel>();
+            using var connection = new MySqlConnection(_mysqlConnectionString);
+            MySqlDataReader? reader = null;
             try
             {
-                // getOrdinal is used to get the index of the column
-                DateTime attendanceMonthDate = reader.GetDateTime(reader.GetOrdinal("AttendanceMonth"));
-                attendanceMonthValue = attendanceMonthDate.Month;
+                await connection.OpenAsync();
+                // Đảm bảo query lấy cột AttendanceMonth
+                string query = "SELECT AttendanceID, EmployeeID, WorkDays, AbsentDays, LeaveDays, AttendanceMonth, CreatedAt FROM attendance WHERE EmployeeID = @EmployeeID ORDER BY AttendanceMonth DESC, AttendanceID ASC";
+
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@EmployeeID", employeeID);
+
+                reader = (MySqlDataReader)await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    attendanceList.Add(MapReaderToAttendanceModel(reader));
+                }
+                _logger.LogInformation("Successfully retrieved {Count} attendance records for Employee ID {EmployeeID}.", attendanceList.Count, employeeID);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error when reading or converting Attendancemonth.");
+                _logger.LogError(ex, "Error when taking the timekeeping list for Employee ID {EmployeeID}.", employeeID);
+                throw;
             }
+            finally
+            {
+                if (reader != null && !reader.IsClosed)
+                {
+                    await reader.DisposeAsync();
+                }
+                if (connection.State == ConnectionState.Open)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+            return attendanceList;
+        }
+
+
+        private AttendanceModel MapReaderToAttendanceModel(MySqlDataReader reader)
+        {
+            // Lấy giá trị DateTime trực tiếp từ cột AttendanceMonth
+            DateTime attendanceMonthValue = reader.GetDateTime(reader.GetOrdinal("AttendanceMonth"));
 
             return new AttendanceModel
             {
@@ -229,7 +255,7 @@ namespace Integration_System.DAL
                 WorkDays = reader.GetInt32(reader.GetOrdinal("WorkDays")),
                 AbsentDays = reader.IsDBNull(reader.GetOrdinal("AbsentDays")) ? 0 : reader.GetInt32(reader.GetOrdinal("AbsentDays")),
                 LeaveDays = reader.IsDBNull(reader.GetOrdinal("LeaveDays")) ? 0 : reader.GetInt32(reader.GetOrdinal("LeaveDays")),
-                AttendanceMonth = attendanceMonthValue
+                AttendanceMonth = attendanceMonthValue // Gán giá trị DateTime đã đọc
             };
         }
     }
